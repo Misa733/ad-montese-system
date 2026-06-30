@@ -1,0 +1,67 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 35 24% 96%;
+    --foreground: 0 0% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 11%;
+    --primary: 357 82% 26%;
+    --primary-foreground: 35 24% 96%;
+    --secondary: 357 82% 36%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 30 26% 90%;
+    --muted-foreground: 0 0% 42%;
+    --accent: 31 37% 74%;
+    --accent-foreground: 0 0% 11%;
+    --surface: 30 26% 87%;
+    --border: 28 18% 84%;
+    --input: 28 18% 84%;
+    --ring: 357 82% 26%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 24 13% 9%;
+    --foreground: 35 24% 96%;
+    --card: 25 12% 13%;
+    --card-foreground: 35 24% 96%;
+    --primary: 357 72% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 357 70% 36%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 24 12% 18%;
+    --muted-foreground: 32 9% 68%;
+    --accent: 31 18% 34%;
+    --accent-foreground: 35 24% 96%;
+    --surface: 24 12% 18%;
+    --border: 24 10% 22%;
+    --input: 24 10% 22%;
+    --ring: 357 72% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    overflow-x: hidden;
+  }
+
+  html {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  img,
+  svg,
+  canvas,
+  video {
+    max-width: 100%;
+  }
+}
