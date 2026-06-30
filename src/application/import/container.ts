@@ -10,9 +10,7 @@ console.log("GOOGLE_SHEETS_API_KEY carregada?", Boolean(GOOGLE_SHEETS_API_KEY));
 console.log("GOOGLE_OAUTH_ACCESS_TOKEN carregado?", Boolean(GOOGLE_OAUTH_ACCESS_TOKEN));
 
 if (!GOOGLE_SHEETS_API_KEY && !GOOGLE_OAUTH_ACCESS_TOKEN) {
-  throw new Error(
-    "Nenhuma credencial do Google Sheets foi encontrada. Verifique o arquivo .env e reinicie o servidor."
-  );
+  console.warn("Nenhuma credencial do Google Sheets foi encontrada. Configure VITE_GOOGLE_SHEETS_API_KEY na hospedagem.");
 }
 
 const spreadsheetRepository = new GoogleSheetsRepository(new GoogleSheetsService());
