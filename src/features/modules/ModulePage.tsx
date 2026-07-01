@@ -3,6 +3,7 @@ import { Download, ExternalLink, Eye, Plus, Save, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { FilterService, emptyGlobalFilters, type GlobalFilters } from "@/application/data/FilterService";
+import { normalizeText } from "@/application/data/SpreadsheetDataService";
 import { MONTHS, type TitheContribution, type TithePayer } from "@/application/data/TitheService";
 import type { FinancialMovement } from "@/application/data/TreasuryService";
 import { parseMoney } from "@/application/data/TreasuryService";
@@ -116,11 +117,14 @@ function TreasuryPage() {
 function TithesPage() {
   const { tithePayers, titheContributions, dashboardService, spreadsheetService } = useRealData();
   const [filters, setFilters] = useState<GlobalFilters>(emptyGlobalFilters);
+  const [mobileSearch, setMobileSearch] = useState("");
   const [selected, setSelected] = useState<TithePayer | null>(null);
   const [creating, setCreating] = useState(false);
   const service = new FilterService();
-  const payers = service.filterTithePayers(tithePayers, filters);
-  const contributions = service.filterContributions(titheContributions, filters);
+  const filteredPayers = service.filterTithePayers(tithePayers, filters);
+  const filteredContributions = service.filterContributions(titheContributions, filters);
+  const payers = filterTithePayersBySearch(filteredPayers, mobileSearch);
+  const contributions = filterContributionsBySearch(filteredContributions, mobileSearch);
   const model = dashboardService.build(filters);
 
   const payerColumns = useMemo<ColumnDef<TithePayer>[]>(
@@ -182,6 +186,19 @@ function TithesPage() {
         <Metric label="Ativos" value={payers.filter((item) => item.contributedMonths > 0).length} />
       </div>
       <TitheFilters filters={filters} setFilters={setFilters} payers={tithePayers} />
+      <Card className="mb-6 min-w-0 overflow-hidden lg:hidden">
+        <CardContent className="p-4">
+          <label className="text-xs font-medium text-muted-foreground">
+            Buscar dizimista
+            <Input
+              className="mt-2"
+              value={mobileSearch}
+              onChange={(event) => setMobileSearch(event.target.value)}
+              placeholder="Digite nome ou congregacao..."
+            />
+          </label>
+        </CardContent>
+      </Card>
       <div className="grid min-w-0 max-w-full gap-6 overflow-hidden">
         <div className="min-w-0 max-w-full overflow-hidden">
           <h2 className="mb-3 text-base font-semibold">Dizimistas</h2>
@@ -341,6 +358,26 @@ function FilterBar({ movements, filters, setFilters }: { movements: FinancialMov
         <Filter label="Forma" value={filters.paymentMethod} options={options.methods} onChange={(paymentMethod) => setFilters((current) => ({ ...current, paymentMethod }))} />
       </CardContent>
     </Card>
+  );
+}
+
+function filterTithePayersBySearch(payers: TithePayer[], search: string) {
+  const term = normalizeText(search);
+  if (!term) return payers;
+
+  return payers.filter((payer) =>
+    [payer.name, payer.congregation, payer.sector, payer.area].some((value) => normalizeText(value).includes(term)),
+  );
+}
+
+function filterContributionsBySearch(contributions: TitheContribution[], search: string) {
+  const term = normalizeText(search);
+  if (!term) return contributions;
+
+  return contributions.filter((contribution) =>
+    [contribution.tithePayerName, contribution.congregation, contribution.month, String(contribution.year)].some((value) =>
+      normalizeText(value).includes(term),
+    ),
   );
 }
 
