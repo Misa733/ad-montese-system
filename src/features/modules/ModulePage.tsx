@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, ExternalLink, Eye, Plus, Save, X } from "lucide-react";
+import { Download, ExternalLink, Eye, Plus, Receipt, Save, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { FilterService, emptyGlobalFilters, type GlobalFilters } from "@/application/data/FilterService";
@@ -119,6 +119,7 @@ function TithesPage() {
   const [filters, setFilters] = useState<GlobalFilters>(emptyGlobalFilters);
   const [mobileSearch, setMobileSearch] = useState("");
   const [selected, setSelected] = useState<TithePayer | null>(null);
+  const [receiptContribution, setReceiptContribution] = useState<TitheContribution | null>(null);
   const [creating, setCreating] = useState(false);
   const service = new FilterService();
   const filteredPayers = service.filterTithePayers(tithePayers, filters);
@@ -155,6 +156,15 @@ function TithesPage() {
       { accessorKey: "year", header: "Ano" },
       { accessorKey: "congregation", header: "Congregacao" },
       { accessorKey: "amount", header: "Valor", cell: ({ row }) => formatCurrency(row.original.amount) },
+      {
+        id: "receipt",
+        header: "Recibo",
+        cell: ({ row }) => (
+          <Button variant="ghost" size="icon" onClick={() => setReceiptContribution(row.original)} aria-label="Gerar recibo">
+            <Receipt className="h-4 w-4" />
+          </Button>
+        ),
+      },
     ],
     [],
   );
@@ -213,7 +223,7 @@ function TithesPage() {
         <div className="min-w-0 max-w-full overflow-hidden">
           <h2 className="mb-3 text-base font-semibold">Contribuicoes mensais</h2>
           <div className="min-w-0 max-w-full overflow-hidden lg:hidden">
-            <MobileContributionCards contributions={contributions} />
+            <MobileContributionCards contributions={contributions} onReceipt={setReceiptContribution} />
           </div>
           <div className="hidden lg:block">
             <DataTable columns={contributionColumns} data={contributions} searchPlaceholder="Pesquisar contribuicoes..." />
@@ -221,6 +231,7 @@ function TithesPage() {
         </div>
       </div>
       {selected ? <TitheProfile payer={selected} onClose={() => setSelected(null)} /> : null}
+      {receiptContribution ? <ReceiptModal contribution={receiptContribution} onClose={() => setReceiptContribution(null)} /> : null}
       {creating ? (
         <SimpleCreateModal
           title="Novo dizimo"
@@ -324,9 +335,9 @@ function ReportsPage() {
           </>
         }
       />
-      <Card className="mb-6">
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="text-xs font-medium text-muted-foreground">
+      <Card className="mb-6 min-w-0 overflow-hidden">
+        <CardContent className="grid min-w-0 grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="min-w-0 text-xs font-medium text-muted-foreground">
             Tipo
             <Select className="mt-1 w-full" value={periodType} onChange={(event) => setPeriodType(event.target.value as ReportPeriodType)}>
               <option value="month">Mes</option>
@@ -335,7 +346,7 @@ function ReportsPage() {
             </Select>
           </label>
           {periodType === "month" ? (
-            <label className="text-xs font-medium text-muted-foreground">
+            <label className="min-w-0 text-xs font-medium text-muted-foreground">
               Mes
               <Select className="mt-1 w-full" value={month} onChange={(event) => setMonth(event.target.value)}>
                 {MONTHS.map((label, index) => (
@@ -537,6 +548,78 @@ function printReportPdf({ periodLabel, rows, totals }: { periodLabel: string; ro
   printWindow.document.close();
 }
 
+function buildReceiptNumber(contribution: TitheContribution) {
+  const rawNumber = contribution.raw["N"] ?? contribution.raw["Nº"] ?? contribution.raw["NÂº"] ?? contribution.raw.numero ?? contribution.raw.Numero;
+  const base = sheetValueToReceiptText(rawNumber) || contribution.id.replace(/\D/g, "").slice(-4);
+  return base || String(Date.now()).slice(-5);
+}
+
+function printReceipt(draft: ReceiptDraft) {
+  const printWindow = window.open("", "_blank", "width=420,height=640");
+  if (!printWindow) {
+    toast.error("Nao foi possivel abrir a janela de impressao.");
+    return;
+  }
+
+  const logo = `${window.location.origin}/assets/logo.png`;
+  const emittedAt = new Date().toLocaleString("pt-BR");
+  printWindow.document.write(`
+    <!doctype html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8" />
+        <title>Recibo de Doacao</title>
+        <style>
+          @page { size: 80mm auto; margin: 4mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; color: #000; font-family: Arial, sans-serif; font-size: 12px; }
+          .receipt { width: 72mm; margin: 0 auto; }
+          .logo { display: block; width: 30mm; max-height: 18mm; object-fit: contain; margin: 0 auto 2mm; }
+          h1 { margin: 0 0 3mm; text-align: center; font-size: 16px; font-weight: 800; text-transform: uppercase; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          td { border: 1px solid #000; padding: 2mm 1.5mm; vertical-align: top; font-size: 12px; font-weight: 700; }
+          td:first-child { width: 25mm; }
+          .value { word-break: break-word; }
+          .signature { margin: 18mm 0 5mm; text-align: center; }
+          .line { border-top: 1px solid #000; margin: 0 8mm 3mm; }
+          .agent { font-weight: 700; }
+          .emitted { text-align: center; font-size: 10px; }
+          .cut { margin-top: 4mm; border-top: 1px dashed #000; }
+          @media screen { body { background: #eee; padding: 12px; } .receipt { background: #fff; padding: 4mm; } }
+        </style>
+      </head>
+      <body>
+        <main class="receipt">
+          <img class="logo" src="${logo}" alt="AD Montese" />
+          <h1>Recibo de Doacao</h1>
+          <table>
+            <tr><td>No Local:</td><td class="value">${escapeHtml(draft.localNumber)}</td></tr>
+            <tr><td>Tipo:</td><td class="value">${escapeHtml(draft.type)}</td></tr>
+            <tr><td>Nome:</td><td class="value">${escapeHtml(draft.name)}</td></tr>
+            <tr><td>Data:</td><td class="value">${escapeHtml(formatDateLabel(draft.date))}</td></tr>
+            <tr><td>Forma:</td><td class="value">${escapeHtml(draft.paymentMethod)}</td></tr>
+            <tr><td>Valor R$:</td><td class="value">${escapeHtml(draft.amount)}</td></tr>
+            <tr><td>Igreja:</td><td class="value">${escapeHtml(draft.church)}</td></tr>
+          </table>
+          <section class="signature">
+            <div class="line"></div>
+            <div class="agent">Agente Recebedor</div>
+          </section>
+          <p class="emitted">Emitido em: ${emittedAt}</p>
+          <div class="cut"></div>
+        </main>
+        <script>window.onload = () => { window.print(); };</script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function sheetValueToReceiptText(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
 function escapeHtml(value: unknown) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -709,7 +792,7 @@ function MobileTithePayerCards({ payers, onSelect }: { payers: TithePayer[]; onS
   );
 }
 
-function MobileContributionCards({ contributions }: { contributions: TitheContribution[] }) {
+function MobileContributionCards({ contributions, onReceipt }: { contributions: TitheContribution[]; onReceipt: (contribution: TitheContribution) => void }) {
   if (!contributions.length) {
     return (
       <Card>
@@ -737,9 +820,67 @@ function MobileContributionCards({ contributions }: { contributions: TitheContri
               <MobileInfo label="Valor" value={formatCurrency(contribution.amount)} strong />
               <MobileInfo label="Congregacao" value={contribution.congregation || "Nao informada"} />
             </div>
+            <Button variant="outline" className="mt-4 w-full" onClick={() => onReceipt(contribution)}>
+              <Receipt className="h-4 w-4" />
+              Gerar recibo
+            </Button>
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+interface ReceiptDraft {
+  localNumber: string;
+  type: string;
+  name: string;
+  date: string;
+  paymentMethod: string;
+  amount: string;
+  church: string;
+}
+
+function ReceiptModal({ contribution, onClose }: { contribution: TitheContribution; onClose: () => void }) {
+  const [draft, setDraft] = useState<ReceiptDraft>(() => ({
+    localNumber: buildReceiptNumber(contribution),
+    type: "Dizimo",
+    name: contribution.tithePayerName,
+    date: new Date().toISOString().slice(0, 10),
+    paymentMethod: "Dinheiro",
+    amount: formatCurrency(contribution.amount).replace("R$", "").trim(),
+    church: contribution.congregation || "Sede Montese",
+  }));
+
+  const set = (key: keyof ReceiptDraft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-4">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-border bg-card shadow-soft">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4 sm:p-5">
+          <h2 className="break-words text-lg font-semibold">Recibo de dizimo</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar"><X className="h-4 w-4" /></Button>
+        </div>
+        <div className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2">
+          <Field label="No Local" value={draft.localNumber} onChange={(value) => set("localNumber", value)} />
+          <Field label="Tipo" value={draft.type} onChange={(value) => set("type", value)} />
+          <Field label="Nome" value={draft.name} onChange={(value) => set("name", value)} />
+          <Field label="Data" type="date" value={draft.date} onChange={(value) => set("date", value)} />
+          <Field label="Forma" value={draft.paymentMethod} onChange={(value) => set("paymentMethod", value)} />
+          <Field label="Valor R$" value={draft.amount} onChange={(value) => set("amount", value)} />
+          <label className="min-w-0 text-sm font-medium md:col-span-2">
+            Igreja
+            <Input className="mt-2 min-w-0" value={draft.church} onChange={(event) => set("church", event.target.value)} />
+          </label>
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-border p-4 sm:flex-row sm:justify-end sm:p-5">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={() => printReceipt(draft)}>
+            <Receipt className="h-4 w-4" />
+            Imprimir recibo
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -893,9 +1034,9 @@ function Filter({ label, value, options, onChange }: { label: string; value: str
 
 function Field({ label, value, onChange, type = "text" }: { label: string; value?: string; onChange: (value: string) => void; type?: string }) {
   return (
-    <label className="text-sm font-medium">
+    <label className="min-w-0 text-sm font-medium">
       {label}
-      <Input className="mt-2" type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} />
+      <Input className="mt-2 min-w-0 max-w-full" type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }

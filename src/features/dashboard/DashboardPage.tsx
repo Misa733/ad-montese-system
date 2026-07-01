@@ -1,12 +1,14 @@
 import { motion } from "framer-motion";
-import { Banknote, CalendarDays, Church, CreditCard, FileText, HandCoins, Landmark, Receipt, RefreshCcw, TrendingDown, TrendingUp, Users } from "lucide-react";
+import { Banknote, CalendarDays, Church, CreditCard, Download, FileText, HandCoins, Landmark, Receipt, RefreshCcw, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import type { DashboardService } from "@/application/data/DashboardService";
 import { emptyGlobalFilters, type GlobalFilters } from "@/application/data/FilterService";
 import { useRealData } from "@/application/data/useRealData";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
@@ -70,7 +72,15 @@ export function DashboardPage() {
         eyebrow="Visao executiva"
         title="Dashboard"
         description="Indicadores recalculados automaticamente a partir dos dados reais da planilha."
-        actions={<Badge>{movements.length + tithePayers.length} registros reais processados</Badge>}
+        actions={
+          <>
+            <Badge>{movements.length + tithePayers.length} registros reais processados</Badge>
+            <Button onClick={() => printDashboardPdf({ filters, cards, model })}>
+              <Download className="h-4 w-4" />
+              Gerar PDF
+            </Button>
+          </>
+        }
       />
 
       <Card className="mb-6">
@@ -177,6 +187,101 @@ function FilterSelect({ label, value, options, onChange }: { label: string; valu
       </Select>
     </label>
   );
+}
+
+function printDashboardPdf({ filters, cards, model }: { filters: GlobalFilters; cards: Array<{ label: string; value: string | number }>; model: ReturnType<DashboardService["build"]> }) {
+  const printWindow = window.open("", "_blank", "width=900,height=700");
+  if (!printWindow) return;
+
+  const logo = `${window.location.origin}/assets/logo.png`;
+  const generatedAt = new Date().toLocaleString("pt-BR");
+  const activeFilters = Object.entries(filters)
+    .filter(([, value]) => value && value !== "Todos")
+    .map(([key, value]) => `${dashboardFilterLabel(key)}: ${value}`)
+    .join(" | ") || "Todos os dados";
+  const cardRows = cards
+    .map((card) => `<tr><td>${escapeDashboardHtml(card.label)}</td><td>${escapeDashboardHtml(card.value)}</td></tr>`)
+    .join("");
+  const topRows = model.topCongregations
+    .slice(0, 10)
+    .map((row) => `<tr><td>${escapeDashboardHtml(row.name)}</td><td>${formatCurrency(Number(row.value))}</td></tr>`)
+    .join("");
+  const titheRows = model.topTithers
+    .slice(0, 10)
+    .map((row) => `<tr><td>${escapeDashboardHtml(row.name)}</td><td>${formatCurrency(Number(row.value))}</td></tr>`)
+    .join("");
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8" />
+        <title>Relatorio Financeiro Dashboard</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 28px; color: #1c1c1c; font-family: Arial, sans-serif; }
+          header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #7A0C10; padding-bottom: 16px; }
+          img { width: 72px; height: 72px; object-fit: contain; }
+          h1 { margin: 0; font-size: 22px; }
+          h2 { margin: 24px 0 8px; font-size: 16px; color: #7A0C10; }
+          p { margin: 4px 0 0; color: #555; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+          th, td { border-bottom: 1px solid #e5e5e5; padding: 8px; text-align: left; }
+          th { background: #f4eeee; color: #7A0C10; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+          @media print { body { padding: 18px; } .grid { grid-template-columns: 1fr; gap: 8px; } }
+        </style>
+      </head>
+      <body>
+        <header>
+          <img src="${logo}" alt="AD Montese" />
+          <div>
+            <h1>Relatorio Financeiro do Dashboard</h1>
+            <p>Filtros: ${escapeDashboardHtml(activeFilters)}</p>
+            <p>Gerado em: ${generatedAt}</p>
+          </div>
+        </header>
+        <h2>Indicadores</h2>
+        <table><tbody>${cardRows}</tbody></table>
+        <section class="grid">
+          <div>
+            <h2>Top congregacoes</h2>
+            <table><thead><tr><th>Congregacao</th><th>Total</th></tr></thead><tbody>${topRows || '<tr><td colspan="2">Sem dados</td></tr>'}</tbody></table>
+          </div>
+          <div>
+            <h2>Top dizimistas</h2>
+            <table><thead><tr><th>Dizimista</th><th>Total</th></tr></thead><tbody>${titheRows || '<tr><td colspan="2">Sem dados</td></tr>'}</tbody></table>
+          </div>
+        </section>
+        <script>window.onload = () => { window.print(); };</script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function dashboardFilterLabel(key: string) {
+  const labels: Record<string, string> = {
+    area: "Area",
+    sector: "Setor",
+    congregation: "Congregacao",
+    period: "Periodo",
+    month: "Mes",
+    year: "Ano",
+    financialType: "Tipo financeiro",
+    paymentMethod: "Forma",
+    tithePayer: "Dizimista",
+  };
+  return labels[key] ?? key;
+}
+
+function escapeDashboardHtml(value: unknown) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function unique(values: string[]) {
