@@ -213,7 +213,7 @@ function TithesPage() {
         <div className="min-w-0 max-w-full overflow-hidden">
           <h2 className="mb-3 text-base font-semibold">Dizimistas</h2>
           <div className="min-w-0 max-w-full overflow-hidden lg:hidden">
-            <MobileTithePayerCards payers={payers} onSelect={setSelected} />
+            <MobileTithePayerCards payers={payers} onSelect={setSelected} onReceipt={setReceiptContribution} />
           </div>
           <div className="hidden lg:block">
             <DataTable columns={payerColumns} data={payers} searchPlaceholder="Pesquisar dizimista..." />
@@ -738,7 +738,7 @@ const TITHE_MONTHS: Array<{ key: keyof TithePayer["monthlyTithes"]; label: strin
   { key: "dezembro", label: "Dezembro", short: "Dez" },
 ];
 
-function MobileTithePayerCards({ payers, onSelect }: { payers: TithePayer[]; onSelect: (payer: TithePayer) => void }) {
+function MobileTithePayerCards({ payers, onSelect, onReceipt }: { payers: TithePayer[]; onSelect: (payer: TithePayer) => void; onReceipt: (contribution: TitheContribution) => void }) {
   if (!payers.length) {
     return (
       <Card>
@@ -749,45 +749,54 @@ function MobileTithePayerCards({ payers, onSelect }: { payers: TithePayer[]; onS
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-3 overflow-hidden">
-      {payers.map((payer) => (
-        <Card key={payer.id} className="w-full min-w-0 max-w-full overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="break-words text-sm font-semibold leading-5">{payer.name}</p>
-                <p className="mt-1 break-words text-xs text-muted-foreground">{payer.congregation || "Congregacao nao informada"}</p>
+      {payers.map((payer) => {
+        const receipt = latestContributionFromPayer(payer);
+        return (
+          <Card key={payer.id} className="w-full min-w-0 max-w-full overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex min-w-0 flex-col gap-3 min-[390px]:flex-row min-[390px]:items-start min-[390px]:justify-between">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold leading-5">{payer.name}</p>
+                  <p className="mt-1 break-words text-xs text-muted-foreground">{payer.congregation || "Congregacao nao informada"}</p>
+                </div>
+                <div className="grid shrink-0 grid-cols-2 gap-2 min-[390px]:flex">
+                  <Button variant="outline" size="sm" onClick={() => onSelect(payer)}>
+                    <Eye className="h-4 w-4" />
+                    Ver
+                  </Button>
+                  <Button variant="secondary" size="sm" disabled={!receipt} onClick={() => receipt && onReceipt(receipt)}>
+                    <Receipt className="h-4 w-4" />
+                    Recibo
+                  </Button>
+                </div>
               </div>
-              <Button variant="outline" size="sm" className="shrink-0" onClick={() => onSelect(payer)}>
-                <Eye className="h-4 w-4" />
-                Ver
-              </Button>
-            </div>
 
-            <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 min-[430px]:grid-cols-2">
-              <MobileInfo label="Total anual" value={formatCurrency(payer.annualTotal)} strong />
-              <MobileInfo label="Ultimo mes" value={payer.lastContributionMonth ?? "Sem contribuicao"} />
-              <MobileInfo label="Meses" value={payer.contributedMonths} />
-              <MobileInfo label="Media mensal" value={formatCurrency(payer.averageMonthly)} strong />
-            </div>
-
-            <div className="mt-4 border-t border-border pt-3">
-              <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">Meses com contribuicao</p>
-              <div className="mt-2 flex max-w-full flex-wrap gap-2">
-                {getPaidMonths(payer).length ? (
-                  getPaidMonths(payer).map((month) => (
-                    <div key={month.key} className="min-w-0 flex-1 basis-[86px] rounded-md border border-border bg-surface px-3 py-2">
-                      <p className="text-xs font-semibold text-primary">{month.short}</p>
-                      <p className="mt-1 whitespace-nowrap text-xs font-semibold">{formatCurrency(month.amount)}</p>
-                    </div>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">Sem valores mensais pagos.</span>
-                )}
+              <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 min-[430px]:grid-cols-2">
+                <MobileInfo label="Total anual" value={formatCurrency(payer.annualTotal)} strong />
+                <MobileInfo label="Ultimo mes" value={payer.lastContributionMonth ?? "Sem contribuicao"} />
+                <MobileInfo label="Meses" value={payer.contributedMonths} />
+                <MobileInfo label="Media mensal" value={formatCurrency(payer.averageMonthly)} strong />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">Meses com contribuicao</p>
+                <div className="mt-2 flex max-w-full flex-wrap gap-2">
+                  {getPaidMonths(payer).length ? (
+                    getPaidMonths(payer).map((month) => (
+                      <div key={month.key} className="min-w-0 flex-1 basis-[86px] rounded-md border border-border bg-surface px-3 py-2">
+                        <p className="text-xs font-semibold text-primary">{month.short}</p>
+                        <p className="mt-1 whitespace-nowrap text-xs font-semibold">{formatCurrency(month.amount)}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Sem valores mensais pagos.</span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -831,6 +840,27 @@ function MobileContributionCards({ contributions, onReceipt }: { contributions: 
   );
 }
 
+function latestContributionFromPayer(payer: TithePayer): TitheContribution | null {
+  const paidMonths = getPaidMonths(payer);
+  const latest = paidMonths.at(-1);
+  if (!latest) return null;
+
+  const year = Number(sheetValueToReceiptText(payer.raw.ano ?? payer.raw.Ano)) || new Date().getFullYear();
+  return {
+    id: `${payer.id}_${latest.key}`,
+    tithePayerId: payer.id,
+    tithePayerName: payer.name,
+    month: latest.label,
+    monthNumber: TITHE_MONTHS.findIndex((month) => month.key === latest.key) + 1,
+    amount: latest.amount,
+    year,
+    congregation: payer.congregation,
+    sector: payer.sector,
+    area: payer.area,
+    raw: payer.raw,
+  };
+}
+
 interface ReceiptDraft {
   localNumber: string;
   type: string;
@@ -856,26 +886,26 @@ function ReceiptModal({ contribution, onClose }: { contribution: TitheContributi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-4">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-border bg-card shadow-soft">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-soft">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4 sm:p-5">
           <h2 className="break-words text-lg font-semibold">Recibo de dizimo</h2>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar"><X className="h-4 w-4" /></Button>
         </div>
-        <div className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2">
+        <div className="grid min-w-0 gap-3 p-4 sm:grid-cols-2 sm:gap-4 sm:p-5">
           <Field label="No Local" value={draft.localNumber} onChange={(value) => set("localNumber", value)} />
           <Field label="Tipo" value={draft.type} onChange={(value) => set("type", value)} />
           <Field label="Nome" value={draft.name} onChange={(value) => set("name", value)} />
           <Field label="Data" type="date" value={draft.date} onChange={(value) => set("date", value)} />
           <Field label="Forma" value={draft.paymentMethod} onChange={(value) => set("paymentMethod", value)} />
           <Field label="Valor R$" value={draft.amount} onChange={(value) => set("amount", value)} />
-          <label className="min-w-0 text-sm font-medium md:col-span-2">
+          <label className="min-w-0 text-sm font-medium sm:col-span-2">
             Igreja
             <Input className="mt-2 min-w-0" value={draft.church} onChange={(event) => set("church", event.target.value)} />
           </label>
         </div>
-        <div className="flex flex-col-reverse gap-2 border-t border-border p-4 sm:flex-row sm:justify-end sm:p-5">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => printReceipt(draft)}>
+        <div className="grid gap-2 border-t border-border p-4 sm:flex sm:flex-row sm:justify-end sm:p-5">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>Cancelar</Button>
+          <Button className="w-full sm:w-auto" onClick={() => printReceipt(draft)}>
             <Receipt className="h-4 w-4" />
             Imprimir recibo
           </Button>
