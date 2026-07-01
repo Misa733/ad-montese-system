@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { downloadCsv } from "@/lib/export";
+import { downloadXlsx } from "@/lib/export";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export function ModulePage({ moduleName }: { moduleName: string }) {
@@ -85,7 +85,7 @@ function TreasuryPage() {
           <>
             <Badge>{rows.length} de {movements.length} lancamentos</Badge>
             <Badge>Saldo filtrado {formatCurrency(total)}</Badge>
-            <Button variant="outline" onClick={() => downloadCsv("tesouraria-db.csv", rows as unknown as Array<Record<string, unknown>>)}>
+            <Button variant="outline" onClick={() => downloadXlsx("tesouraria-db.xlsx", rows as unknown as Array<Record<string, unknown>>)}>
               <Download className="h-4 w-4" />
               Exportar
             </Button>
@@ -182,7 +182,7 @@ function TithesPage() {
         description="Valores mensais, totais anuais e contribuicoes individuais lidos da aba Dizimistas."
         actions={
           <>
-            <Button variant="outline" onClick={() => downloadCsv("dizimistas.csv", payers as unknown as Array<Record<string, unknown>>)}>
+            <Button variant="outline" onClick={() => downloadXlsx("dizimistas.xlsx", payers as unknown as Array<Record<string, unknown>>)}>
               <Download className="h-4 w-4" />
               Exportar
             </Button>
@@ -337,7 +337,7 @@ function ReportsPage() {
         description="Relatorios calculados com DB, Fluxo, Historico, Relatorio e Dizimistas."
         actions={
           <>
-            <Button variant="outline" onClick={() => downloadCsv("relatorios.csv", rows as unknown as Array<Record<string, unknown>>)}>
+            <Button variant="outline" onClick={() => downloadXlsx("relatorios.xlsx", rows as unknown as Array<Record<string, unknown>>)}>
               <Download className="h-4 w-4" />
               Exportar
             </Button>
@@ -724,7 +724,7 @@ function DataExplorerPage({ title = "Dados da Planilha" }: { title?: string }) {
   );
   return (
     <div>
-      <PageHeader eyebrow="Explorador" title={title} description="Todas as abas ficam pesquisaveis, ordenaveis e exportaveis para nenhuma informacao ficar escondida." actions={<Button variant="outline" onClick={() => downloadCsv(`${sheet?.title ?? "dados"}.csv`, (sheet?.rows ?? []) as Array<Record<string, unknown>>)}><Download className="h-4 w-4" />Exportar</Button>} />
+      <PageHeader eyebrow="Explorador" title={title} description="Todas as abas ficam pesquisaveis, ordenaveis e exportaveis para nenhuma informacao ficar escondida." actions={<Button variant="outline" onClick={() => downloadXlsx(`${sheet?.title ?? "dados"}.xlsx`, (sheet?.rows ?? []) as Array<Record<string, unknown>>)}><Download className="h-4 w-4" />Exportar</Button>} />
       <Card className="mb-6">
         <CardContent className="p-4">
           <Select value={sheet?.title ?? ""} onChange={(event) => setSheetTitle(event.target.value)}>

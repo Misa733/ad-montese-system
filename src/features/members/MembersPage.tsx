@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { downloadCsv } from "@/lib/export";
+import { downloadXlsx } from "@/lib/export";
 
 interface RealMember {
   id: string;
@@ -79,7 +79,7 @@ export function MembersPage() {
         description="Pessoas identificadas nos dados reais da planilha, com raw completo preservado."
         actions={
           <>
-            <Button variant="outline" onClick={() => downloadCsv("membros-reais.csv", rows as unknown as Array<Record<string, unknown>>)}>
+            <Button variant="outline" onClick={() => downloadXlsx("membros-reais.xlsx", rows as unknown as Array<Record<string, unknown>>)}>
               <Download className="h-4 w-4" />
               Exportar
             </Button>
