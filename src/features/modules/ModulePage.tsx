@@ -126,7 +126,7 @@ function TithesPage() {
   const [creatingContribution, setCreatingContribution] = useState(false);
   const service = new FilterService();
   const allPayers = useMemo(() => applyLocalTitheChanges(tithePayers, localPayers, localContributions), [tithePayers, localPayers, localContributions]);
-  const allContributions = useMemo(() => [...titheContributions, ...localContributions], [titheContributions, localContributions]);
+  const allContributions = useMemo(() => dedupeTitheContributions([...titheContributions, ...localContributions]), [titheContributions, localContributions]);
   const filteredPayers = service.filterTithePayers(allPayers, filters);
   const filteredContributions = service.filterContributions(allContributions, filters);
   const payers = filterTithePayersBySearch(filteredPayers, mobileSearch);
@@ -241,7 +241,7 @@ function TithesPage() {
       </div>
       {selected ? <TitheProfile payer={selected} onClose={() => setSelected(null)} /> : null}
       {receiptContribution ? <ReceiptModal contribution={receiptContribution} onClose={() => setReceiptContribution(null)} /> : null}
-      {creatingPayer ? <NewTithePayerModal onClose={() => setCreatingPayer(false)} onSave={(payer, row) => {
+      {creatingPayer ? <NewTithePayerModal existingPayers={allPayers} onClose={() => setCreatingPayer(false)} onSave={(payer, row) => {
         const next = [payer, ...localPayers];
         setLocalPayers(next);
         saveLocalTithePayers(next);
@@ -826,10 +826,24 @@ function readLocalArray<T>(key: string): T[] {
 
 function applyLocalTitheChanges(basePayers: TithePayer[], localPayers: TithePayer[], localContributions: TitheContribution[]) {
   const payerMap = new Map<string, TithePayer>();
-  [...basePayers, ...localPayers].forEach((payer) => payerMap.set(payer.id, clonePayer(payer)));
+  const payerIdToKey = new Map<string, string>();
+
+  [...basePayers, ...localPayers].forEach((payer) => {
+    const key = tithePayerKey(payer.name);
+    if (!key) return;
+
+    const current = payerMap.get(key);
+    if (current) {
+      mergePayerInto(current, payer);
+    } else {
+      payerMap.set(key, clonePayer(payer));
+    }
+    payerIdToKey.set(payer.id, key);
+  });
 
   localContributions.forEach((contribution) => {
-    const payer = payerMap.get(contribution.tithePayerId);
+    const key = payerIdToKey.get(contribution.tithePayerId) ?? tithePayerKey(contribution.tithePayerName);
+    const payer = payerMap.get(key);
     if (!payer) return;
 
     const month = getTitheMonthByNumber(contribution.monthNumber);
@@ -842,8 +856,25 @@ function applyLocalTitheChanges(basePayers: TithePayer[], localPayers: TithePaye
   return Array.from(payerMap.values());
 }
 
+function tithePayerKey(name: string) {
+  return normalizeText(name);
+}
+
 function clonePayer(payer: TithePayer): TithePayer {
-  return { ...payer, monthlyTithes: { ...payer.monthlyTithes }, raw: { ...payer.raw } };
+  const cloned = { ...payer, monthlyTithes: { ...payer.monthlyTithes }, raw: { ...payer.raw } };
+  recalculatePayerTotals(cloned);
+  return cloned;
+}
+
+function mergePayerInto(target: TithePayer, source: TithePayer) {
+  TITHE_MONTHS.forEach((month) => {
+    target.monthlyTithes[month.key] = Math.max(target.monthlyTithes[month.key] ?? 0, source.monthlyTithes[month.key] ?? 0);
+  });
+  target.congregation ||= source.congregation;
+  target.sector ||= source.sector;
+  target.area ||= source.area;
+  target.raw = { ...source.raw, ...target.raw };
+  recalculatePayerTotals(target);
 }
 
 function recalculatePayerTotals(payer: TithePayer) {
@@ -881,6 +912,23 @@ function emptyTitheMonths(): TithePayer["monthlyTithes"] {
   };
 }
 
+function dedupeTitheContributions(contributions: TitheContribution[]) {
+  const seen = new Set<string>();
+  return contributions.filter((contribution) => {
+    if (contribution.id.startsWith("local_contribution_")) return true;
+    const key = [
+      tithePayerKey(contribution.tithePayerName),
+      contribution.year,
+      contribution.monthNumber,
+      contribution.amount,
+      normalizeText(contribution.congregation),
+    ].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const TITHE_MONTHS: Array<{ key: keyof TithePayer["monthlyTithes"]; label: string; short: string }> = [
   { key: "janeiro", label: "Janeiro", short: "Jan" },
   { key: "fevereiro", label: "Fevereiro", short: "Fev" },
@@ -896,7 +944,7 @@ const TITHE_MONTHS: Array<{ key: keyof TithePayer["monthlyTithes"]; label: strin
   { key: "dezembro", label: "Dezembro", short: "Dez" },
 ];
 
-function NewTithePayerModal({ onClose, onSave }: { onClose: () => void; onSave: (payer: TithePayer, row: Record<string, string>) => void }) {
+function NewTithePayerModal({ existingPayers, onClose, onSave }: { existingPayers: TithePayer[]; onClose: () => void; onSave: (payer: TithePayer, row: Record<string, string>) => void }) {
   const [draft, setDraft] = useState({
     name: "",
     congregation: "",
@@ -910,6 +958,10 @@ function NewTithePayerModal({ onClose, onSave }: { onClose: () => void; onSave: 
   function save() {
     if (!draft.name.trim()) {
       toast.error("Informe o nome do dizimista");
+      return;
+    }
+    if (existingPayers.some((payer) => tithePayerKey(payer.name) === tithePayerKey(draft.name))) {
+      toast.error("Esse dizimista ja existe. Use Lancar dizimo para adicionar um valor.");
       return;
     }
 
