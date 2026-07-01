@@ -156,7 +156,7 @@ function TithesPage() {
   );
 
   return (
-    <div>
+    <div className="min-w-0 overflow-x-hidden">
       <PageHeader
         eyebrow="Dizimos"
         title="Dizimistas"
@@ -399,7 +399,7 @@ function MobileTithePayerCards({ payers, onSelect }: { payers: TithePayer[]; onS
               </Button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 min-[430px]:grid-cols-2">
               <MobileInfo label="Total anual" value={formatCurrency(payer.annualTotal)} strong />
               <MobileInfo label="Ultimo mes" value={payer.lastContributionMonth ?? "Sem contribuicao"} />
               <MobileInfo label="Meses" value={payer.contributedMonths} />
@@ -408,7 +408,7 @@ function MobileTithePayerCards({ payers, onSelect }: { payers: TithePayer[]; onS
 
             <div className="mt-4 border-t border-border pt-3">
               <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">Meses com contribuicao</p>
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-2 flex max-w-full gap-2 overflow-x-auto pb-1">
                 {getPaidMonths(payer).length ? (
                   getPaidMonths(payer).map((month) => (
                     <div key={month.key} className="min-w-[86px] rounded-md border border-border bg-surface px-3 py-2">
@@ -440,7 +440,7 @@ function MobileContributionCards({ contributions }: { contributions: TitheContri
   return (
     <div className="space-y-3">
       {contributions.map((contribution) => (
-        <Card key={contribution.id}>
+        <Card key={contribution.id} className="min-w-0 overflow-hidden">
           <CardContent className="p-4">
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
@@ -450,7 +450,7 @@ function MobileContributionCards({ contributions }: { contributions: TitheContri
               <p className="shrink-0 text-sm font-semibold text-primary">{formatCurrency(contribution.amount)}</p>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 min-[430px]:grid-cols-2">
               <MobileInfo label="Mes" value={contribution.month} />
               <MobileInfo label="Ano" value={contribution.year} />
               <MobileInfo label="Valor" value={formatCurrency(contribution.amount)} strong />
@@ -465,8 +465,8 @@ function MobileContributionCards({ contributions }: { contributions: TitheContri
 
 function MobileInfo({ label, value, strong = false }: { label: string; value: string | number; strong?: boolean }) {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-background/45 p-3">
-      <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">{label}</p>
+    <div className="min-w-0 overflow-hidden rounded-md border border-border bg-background/45 p-3">
+      <p className="break-words text-[11px] font-medium uppercase leading-4 tracking-normal text-muted-foreground">{label}</p>
       <p className={cn("mt-1 break-words text-sm", strong ? "font-semibold text-foreground" : "font-medium")}>{value}</p>
     </div>
   );
@@ -487,7 +487,7 @@ function TitheProfile({ payer, onClose }: { payer: TithePayer; onClose: () => vo
           </Button>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-2 min-[430px]:grid-cols-2 lg:grid-cols-4">
             <MobileInfo label="Total anual" value={formatCurrency(payer.annualTotal)} strong />
             <MobileInfo label="Soma dos meses" value={formatCurrency(payer.calculatedTotal)} strong />
             <MobileInfo label="Ultimo mes" value={payer.lastContributionMonth ?? "Sem contribuicao"} />
@@ -499,7 +499,7 @@ function TitheProfile({ payer, onClose }: { payer: TithePayer; onClose: () => vo
               <h3 className="text-sm font-semibold">Valores mes a mes</h3>
               <Badge>{paidMonths.length} meses pagos</Badge>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-1 gap-2 min-[430px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
               {TITHE_MONTHS.map((month) => {
                 const amount = payer.monthlyTithes[month.key] ?? 0;
                 const paid = amount > 0;
