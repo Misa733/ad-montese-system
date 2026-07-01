@@ -118,12 +118,17 @@ function TithesPage() {
   const { tithePayers, titheContributions, dashboardService, spreadsheetService } = useRealData();
   const [filters, setFilters] = useState<GlobalFilters>(emptyGlobalFilters);
   const [mobileSearch, setMobileSearch] = useState("");
+  const [localPayers, setLocalPayers] = useState<TithePayer[]>(() => readLocalTithePayers());
+  const [localContributions, setLocalContributions] = useState<TitheContribution[]>(() => readLocalTitheContributions());
   const [selected, setSelected] = useState<TithePayer | null>(null);
   const [receiptContribution, setReceiptContribution] = useState<TitheContribution | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creatingPayer, setCreatingPayer] = useState(false);
+  const [creatingContribution, setCreatingContribution] = useState(false);
   const service = new FilterService();
-  const filteredPayers = service.filterTithePayers(tithePayers, filters);
-  const filteredContributions = service.filterContributions(titheContributions, filters);
+  const allPayers = useMemo(() => applyLocalTitheChanges(tithePayers, localPayers, localContributions), [tithePayers, localPayers, localContributions]);
+  const allContributions = useMemo(() => [...titheContributions, ...localContributions], [titheContributions, localContributions]);
+  const filteredPayers = service.filterTithePayers(allPayers, filters);
+  const filteredContributions = service.filterContributions(allContributions, filters);
   const payers = filterTithePayersBySearch(filteredPayers, mobileSearch);
   const contributions = filterContributionsBySearch(filteredContributions, mobileSearch);
   const model = dashboardService.build(filters);
@@ -181,21 +186,25 @@ function TithesPage() {
               <Download className="h-4 w-4" />
               Exportar
             </Button>
-            <Button onClick={() => setCreating(true)}>
+            <Button variant="outline" onClick={() => setCreatingPayer(true)}>
               <Plus className="h-4 w-4" />
-              Novo dizimo
+              Novo dizimista
+            </Button>
+            <Button onClick={() => setCreatingContribution(true)}>
+              <Plus className="h-4 w-4" />
+              Lançar dizimo
             </Button>
           </>
         }
       />
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Total de dizimos" value={formatCurrency(Number(model.cards.titheTotal ?? 0))} />
+        <Metric label="Total de dizimos" value={formatCurrency(contributions.reduce((sum, item) => sum + item.amount, 0) || Number(model.cards.titheTotal ?? 0))} />
         <Metric label="Total do mes" value={formatCurrency(contributions.filter((item) => item.month === filters.month || filters.month === "Todos").reduce((sum, item) => sum + item.amount, 0))} />
         <Metric label="Total do ano" value={formatCurrency(contributions.filter((item) => String(item.year) === filters.year || filters.year === "Todos").reduce((sum, item) => sum + item.amount, 0))} />
         <Metric label="Dizimistas" value={payers.length} />
         <Metric label="Ativos" value={payers.filter((item) => item.contributedMonths > 0).length} />
       </div>
-      <TitheFilters filters={filters} setFilters={setFilters} payers={tithePayers} />
+      <TitheFilters filters={filters} setFilters={setFilters} payers={allPayers} />
       <Card className="mb-6 min-w-0 overflow-hidden lg:hidden">
         <CardContent className="p-4">
           <label className="text-xs font-medium text-muted-foreground">
@@ -232,18 +241,22 @@ function TithesPage() {
       </div>
       {selected ? <TitheProfile payer={selected} onClose={() => setSelected(null)} /> : null}
       {receiptContribution ? <ReceiptModal contribution={receiptContribution} onClose={() => setReceiptContribution(null)} /> : null}
-      {creating ? (
-        <SimpleCreateModal
-          title="Novo dizimo"
-          fields={["Nome", "Congregacao", "Setor", "Area", "Mes", "Ano", "Valor"]}
-          onClose={() => setCreating(false)}
-          onSave={(row) => {
-            spreadsheetService.appendRowToSheet("Dizimistas", row);
-            setCreating(false);
-            toast.success("Dizimo salvo localmente e refletido apos a proxima sincronizacao");
-          }}
-        />
-      ) : null}
+      {creatingPayer ? <NewTithePayerModal onClose={() => setCreatingPayer(false)} onSave={(payer, row) => {
+        const next = [payer, ...localPayers];
+        setLocalPayers(next);
+        saveLocalTithePayers(next);
+        spreadsheetService.appendRowToSheet("Dizimistas", row);
+        setCreatingPayer(false);
+        toast.success("Dizimista cadastrado localmente");
+      }} /> : null}
+      {creatingContribution ? <TitheContributionModal payers={allPayers} onClose={() => setCreatingContribution(false)} onSave={(contribution, row) => {
+        const next = [contribution, ...localContributions];
+        setLocalContributions(next);
+        saveLocalTitheContributions(next);
+        spreadsheetService.appendRowToSheet("Dizimistas", row);
+        setCreatingContribution(false);
+        toast.success("Dizimo lançado localmente");
+      }} /> : null}
     </div>
   );
 }
@@ -783,6 +796,91 @@ function TitheFilters({ filters, setFilters, payers }: { filters: GlobalFilters;
   );
 }
 
+const LOCAL_TITHE_PAYERS_KEY = "ad-montese.local-tithe-payers";
+const LOCAL_TITHE_CONTRIBUTIONS_KEY = "ad-montese.local-tithe-contributions";
+
+function readLocalTithePayers() {
+  return readLocalArray<TithePayer>(LOCAL_TITHE_PAYERS_KEY);
+}
+
+function saveLocalTithePayers(payers: TithePayer[]) {
+  localStorage.setItem(LOCAL_TITHE_PAYERS_KEY, JSON.stringify(payers));
+}
+
+function readLocalTitheContributions() {
+  return readLocalArray<TitheContribution>(LOCAL_TITHE_CONTRIBUTIONS_KEY);
+}
+
+function saveLocalTitheContributions(contributions: TitheContribution[]) {
+  localStorage.setItem(LOCAL_TITHE_CONTRIBUTIONS_KEY, JSON.stringify(contributions));
+}
+
+function readLocalArray<T>(key: string): T[] {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "[]") as T[];
+  } catch {
+    localStorage.removeItem(key);
+    return [];
+  }
+}
+
+function applyLocalTitheChanges(basePayers: TithePayer[], localPayers: TithePayer[], localContributions: TitheContribution[]) {
+  const payerMap = new Map<string, TithePayer>();
+  [...basePayers, ...localPayers].forEach((payer) => payerMap.set(payer.id, clonePayer(payer)));
+
+  localContributions.forEach((contribution) => {
+    const payer = payerMap.get(contribution.tithePayerId);
+    if (!payer) return;
+
+    const month = getTitheMonthByNumber(contribution.monthNumber);
+    if (!month) return;
+
+    payer.monthlyTithes[month.key] = (payer.monthlyTithes[month.key] ?? 0) + contribution.amount;
+    recalculatePayerTotals(payer);
+  });
+
+  return Array.from(payerMap.values());
+}
+
+function clonePayer(payer: TithePayer): TithePayer {
+  return { ...payer, monthlyTithes: { ...payer.monthlyTithes }, raw: { ...payer.raw } };
+}
+
+function recalculatePayerTotals(payer: TithePayer) {
+  const paidMonths = getPaidMonths(payer);
+  payer.calculatedTotal = TITHE_MONTHS.reduce((sum, month) => sum + (payer.monthlyTithes[month.key] ?? 0), 0);
+  payer.annualTotal = payer.calculatedTotal;
+  payer.contributedMonths = paidMonths.length;
+  payer.averageMonthly = paidMonths.length ? payer.calculatedTotal / paidMonths.length : 0;
+  payer.lastContributionMonth = paidMonths.at(-1)?.label ?? null;
+}
+
+function getTitheMonthByNumber(monthNumber: number) {
+  return TITHE_MONTHS[monthNumber - 1];
+}
+
+function getTitheMonthByLabel(label: string) {
+  const normalized = normalizeText(label);
+  return TITHE_MONTHS.find((month) => normalizeText(month.label) === normalized || normalizeText(month.short) === normalized);
+}
+
+function emptyTitheMonths(): TithePayer["monthlyTithes"] {
+  return {
+    janeiro: 0,
+    fevereiro: 0,
+    marco: 0,
+    abril: 0,
+    maio: 0,
+    junho: 0,
+    julho: 0,
+    agosto: 0,
+    setembro: 0,
+    outubro: 0,
+    novembro: 0,
+    dezembro: 0,
+  };
+}
+
 const TITHE_MONTHS: Array<{ key: keyof TithePayer["monthlyTithes"]; label: string; short: string }> = [
   { key: "janeiro", label: "Janeiro", short: "Jan" },
   { key: "fevereiro", label: "Fevereiro", short: "Fev" },
@@ -797,6 +895,146 @@ const TITHE_MONTHS: Array<{ key: keyof TithePayer["monthlyTithes"]; label: strin
   { key: "novembro", label: "Novembro", short: "Nov" },
   { key: "dezembro", label: "Dezembro", short: "Dez" },
 ];
+
+function NewTithePayerModal({ onClose, onSave }: { onClose: () => void; onSave: (payer: TithePayer, row: Record<string, string>) => void }) {
+  const [draft, setDraft] = useState({
+    name: "",
+    congregation: "",
+    sector: "",
+    area: "",
+    year: String(new Date().getFullYear()),
+  });
+
+  const set = (key: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
+
+  function save() {
+    if (!draft.name.trim()) {
+      toast.error("Informe o nome do dizimista");
+      return;
+    }
+
+    const row = {
+      "Nome Completo": draft.name.trim(),
+      CONGREGACAO: draft.congregation.trim(),
+      SETOR: draft.sector.trim(),
+      AREA: draft.area.trim(),
+      ano: draft.year.trim(),
+    };
+    const payer: TithePayer = {
+      id: `local_payer_${crypto.randomUUID()}`,
+      number: null,
+      name: row["Nome Completo"],
+      congregation: row.CONGREGACAO,
+      sector: row.SETOR,
+      area: row.AREA,
+      monthlyTithes: emptyTitheMonths(),
+      annualTotal: 0,
+      calculatedTotal: 0,
+      contributedMonths: 0,
+      averageMonthly: 0,
+      lastContributionMonth: null,
+      raw: row,
+    };
+
+    onSave(payer, row);
+  }
+
+  return (
+    <Modal title="Novo dizimista" onClose={onClose} onSave={save}>
+      <Field label="Nome" value={draft.name} onChange={(value) => set("name", value)} />
+      <Field label="Congregacao" value={draft.congregation} onChange={(value) => set("congregation", value)} />
+      <Field label="Setor" value={draft.sector} onChange={(value) => set("sector", value)} />
+      <Field label="Area" value={draft.area} onChange={(value) => set("area", value)} />
+      <Field label="Ano" value={draft.year} onChange={(value) => set("year", value)} />
+    </Modal>
+  );
+}
+
+function TitheContributionModal({ payers, onClose, onSave }: { payers: TithePayer[]; onClose: () => void; onSave: (contribution: TitheContribution, row: Record<string, string>) => void }) {
+  const [draft, setDraft] = useState({
+    payerId: payers[0]?.id ?? "",
+    month: "Julho",
+    year: String(new Date().getFullYear()),
+    amount: "",
+  });
+
+  const set = (key: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
+  const payer = payers.find((item) => item.id === draft.payerId);
+
+  function save() {
+    if (!payer) {
+      toast.error("Selecione um dizimista");
+      return;
+    }
+
+    const month = getTitheMonthByLabel(draft.month);
+    const amount = parseMoney(draft.amount);
+    const year = Number(draft.year);
+    if (!month) {
+      toast.error("Selecione o mes");
+      return;
+    }
+    if (!amount || amount <= 0) {
+      toast.error("Informe um valor valido");
+      return;
+    }
+    if (!Number.isFinite(year)) {
+      toast.error("Informe o ano");
+      return;
+    }
+
+    const row = {
+      "Nome Completo": payer.name,
+      CONGREGACAO: payer.congregation,
+      SETOR: payer.sector,
+      AREA: payer.area,
+      ano: String(year),
+      [month.label]: draft.amount,
+    };
+    const contribution: TitheContribution = {
+      id: `local_contribution_${crypto.randomUUID()}`,
+      tithePayerId: payer.id,
+      tithePayerName: payer.name,
+      month: month.label,
+      monthNumber: TITHE_MONTHS.findIndex((item) => item.key === month.key) + 1,
+      amount,
+      year,
+      congregation: payer.congregation,
+      sector: payer.sector,
+      area: payer.area,
+      raw: row,
+    };
+
+    onSave(contribution, row);
+  }
+
+  return (
+    <Modal title="Lancar dizimo mensal" onClose={onClose} onSave={save}>
+      <label className="min-w-0 text-sm font-medium">
+        Dizimista
+        <Select className="mt-2 w-full" value={draft.payerId} onChange={(event) => set("payerId", event.target.value)}>
+          {payers.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <label className="min-w-0 text-sm font-medium">
+        Mes
+        <Select className="mt-2 w-full" value={draft.month} onChange={(event) => set("month", event.target.value)}>
+          {TITHE_MONTHS.map((month) => (
+            <option key={month.key} value={month.label}>
+              {month.label}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <Field label="Ano" value={draft.year} onChange={(value) => set("year", value)} />
+      <Field label="Valor R$" value={draft.amount} onChange={(value) => set("amount", value)} />
+    </Modal>
+  );
+}
 
 function MobileTithePayerCards({ payers, onSelect, onReceipt }: { payers: TithePayer[]; onSelect: (payer: TithePayer) => void; onReceipt: (contribution: TitheContribution) => void }) {
   if (!payers.length) {
