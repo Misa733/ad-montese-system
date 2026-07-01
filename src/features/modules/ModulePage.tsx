@@ -492,6 +492,7 @@ function printReportPdf({ periodLabel, rows, totals }: { periodLabel: string; ro
   }
 
   const logo = `${window.location.origin}/assets/logo.png`;
+  const returnUrl = window.location.href;
   const generatedAt = new Date().toLocaleString("pt-BR");
   const tableRows = rows
     .map(
@@ -508,6 +509,32 @@ function printReportPdf({ periodLabel, rows, totals }: { periodLabel: string; ro
         <style>
           * { box-sizing: border-box; }
           body { margin: 0; padding: 28px; color: #1c1c1c; font-family: Arial, sans-serif; }
+          .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: -28px -28px 22px;
+            padding: 10px;
+            background: #f4f4f4;
+            border-bottom: 1px solid #d8d8d8;
+          }
+          .toolbar button,
+          .toolbar a {
+            display: inline-flex;
+            min-height: 42px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #7A0C10;
+            border-radius: 8px;
+            background: #7A0C10;
+            color: #fff;
+            font: 700 14px Arial, sans-serif;
+            text-decoration: none;
+          }
+          .toolbar a { background: #fff; color: #7A0C10; }
           header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #7A0C10; padding-bottom: 16px; }
           img { width: 72px; height: 72px; object-fit: contain; }
           h1 { margin: 0; font-size: 22px; }
@@ -519,10 +546,14 @@ function printReportPdf({ periodLabel, rows, totals }: { periodLabel: string; ro
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
           th, td { border-bottom: 1px solid #e5e5e5; padding: 8px; text-align: left; }
           th { background: #f4eeee; color: #7A0C10; }
-          @media print { body { padding: 18px; } .summary { grid-template-columns: repeat(2, 1fr); } }
+          @media print { body { padding: 18px; } .toolbar { display: none; } .summary { grid-template-columns: repeat(2, 1fr); } }
         </style>
       </head>
       <body>
+        <nav class="toolbar">
+          <button type="button" onclick="window.print()">Imprimir</button>
+          <a href="${escapeHtml(returnUrl)}" onclick="if (window.opener) { window.close(); }">Voltar ao sistema</a>
+        </nav>
         <header>
           <img src="${logo}" alt="AD Montese" />
           <div>
@@ -541,7 +572,6 @@ function printReportPdf({ periodLabel, rows, totals }: { periodLabel: string; ro
           <thead><tr><th>Relatorio</th><th>Grupo</th><th>Registros</th><th>Total</th></tr></thead>
           <tbody>${tableRows || '<tr><td colspan="4">Nenhum dado encontrado para o periodo.</td></tr>'}</tbody>
         </table>
-        <script>window.onload = () => { window.print(); };</script>
       </body>
     </html>
   `);

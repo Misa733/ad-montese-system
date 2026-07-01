@@ -194,6 +194,7 @@ function printDashboardPdf({ filters, cards, model }: { filters: GlobalFilters; 
   if (!printWindow) return;
 
   const logo = `${window.location.origin}/assets/logo.png`;
+  const returnUrl = window.location.href;
   const generatedAt = new Date().toLocaleString("pt-BR");
   const activeFilters = Object.entries(filters)
     .filter(([, value]) => value && value !== "Todos")
@@ -220,6 +221,32 @@ function printDashboardPdf({ filters, cards, model }: { filters: GlobalFilters; 
         <style>
           * { box-sizing: border-box; }
           body { margin: 0; padding: 28px; color: #1c1c1c; font-family: Arial, sans-serif; }
+          .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: -28px -28px 22px;
+            padding: 10px;
+            background: #f4f4f4;
+            border-bottom: 1px solid #d8d8d8;
+          }
+          .toolbar button,
+          .toolbar a {
+            display: inline-flex;
+            min-height: 42px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #7A0C10;
+            border-radius: 8px;
+            background: #7A0C10;
+            color: #fff;
+            font: 700 14px Arial, sans-serif;
+            text-decoration: none;
+          }
+          .toolbar a { background: #fff; color: #7A0C10; }
           header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #7A0C10; padding-bottom: 16px; }
           img { width: 72px; height: 72px; object-fit: contain; }
           h1 { margin: 0; font-size: 22px; }
@@ -229,10 +256,14 @@ function printDashboardPdf({ filters, cards, model }: { filters: GlobalFilters; 
           th, td { border-bottom: 1px solid #e5e5e5; padding: 8px; text-align: left; }
           th { background: #f4eeee; color: #7A0C10; }
           .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-          @media print { body { padding: 18px; } .grid { grid-template-columns: 1fr; gap: 8px; } }
+          @media print { body { padding: 18px; } .toolbar { display: none; } .grid { grid-template-columns: 1fr; gap: 8px; } }
         </style>
       </head>
       <body>
+        <nav class="toolbar">
+          <button type="button" onclick="window.print()">Imprimir</button>
+          <a href="${escapeDashboardHtml(returnUrl)}" onclick="if (window.opener) { window.close(); }">Voltar ao sistema</a>
+        </nav>
         <header>
           <img src="${logo}" alt="AD Montese" />
           <div>
@@ -253,7 +284,6 @@ function printDashboardPdf({ filters, cards, model }: { filters: GlobalFilters; 
             <table><thead><tr><th>Dizimista</th><th>Total</th></tr></thead><tbody>${titheRows || '<tr><td colspan="2">Sem dados</td></tr>'}</tbody></table>
           </div>
         </section>
-        <script>window.onload = () => { window.print(); };</script>
       </body>
     </html>
   `);
