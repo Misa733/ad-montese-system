@@ -31,9 +31,9 @@ export function AppLayout({ isDark, onToggleTheme }: AppLayoutProps) {
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
       <div className="flex min-w-0">
         <AppSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 max-w-full flex-1 overflow-x-hidden">
           <AppHeader isDark={isDark} onToggleTheme={onToggleTheme} onOpenMenu={() => setIsSidebarOpen(true)} />
-          <main className="mx-auto w-full max-w-[1500px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <main className="mx-auto w-full max-w-full px-3 py-4 sm:px-6 sm:py-6 lg:max-w-[1500px] lg:px-8">
             <Outlet />
           </main>
         </div>
