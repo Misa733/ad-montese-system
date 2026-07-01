@@ -1,0 +1,17 @@
+{
+  "name": "AD Montese | Sistema Administrativo",
+  "short_name": "AD Montese",
+  "description": "Sistema administrativo ministerial da Assembleia de Deus Montese.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7A0C10",
+  "icons": [
+    {
+      "src": "/assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
