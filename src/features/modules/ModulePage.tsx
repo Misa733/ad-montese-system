@@ -562,6 +562,7 @@ function printReceipt(draft: ReceiptDraft) {
   }
 
   const logo = `${window.location.origin}/assets/logo.png`;
+  const returnUrl = window.location.href;
   const emittedAt = new Date().toLocaleString("pt-BR");
   printWindow.document.write(`
     <!doctype html>
@@ -573,6 +574,31 @@ function printReceipt(draft: ReceiptDraft) {
           @page { size: 80mm auto; margin: 4mm; }
           * { box-sizing: border-box; }
           body { margin: 0; color: #000; font-family: Arial, sans-serif; font-size: 12px; }
+          .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 10px;
+            background: #f4f4f4;
+            border-bottom: 1px solid #d8d8d8;
+          }
+          .toolbar button,
+          .toolbar a {
+            display: inline-flex;
+            min-height: 42px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #7A0C10;
+            border-radius: 8px;
+            background: #7A0C10;
+            color: #fff;
+            font: 700 14px Arial, sans-serif;
+            text-decoration: none;
+          }
+          .toolbar a { background: #fff; color: #7A0C10; }
           .receipt { width: 72mm; margin: 0 auto; }
           .logo { display: block; width: 30mm; max-height: 18mm; object-fit: contain; margin: 0 auto 2mm; }
           h1 { margin: 0 0 3mm; text-align: center; font-size: 16px; font-weight: 800; text-transform: uppercase; }
@@ -585,10 +611,15 @@ function printReceipt(draft: ReceiptDraft) {
           .agent { font-weight: 700; }
           .emitted { text-align: center; font-size: 10px; }
           .cut { margin-top: 4mm; border-top: 1px dashed #000; }
-          @media screen { body { background: #eee; padding: 12px; } .receipt { background: #fff; padding: 4mm; } }
+          @media screen { body { background: #eee; } .receipt { background: #fff; padding: 4mm; margin-top: 12px; } }
+          @media print { .toolbar { display: none; } body { padding: 0; } }
         </style>
       </head>
       <body>
+        <nav class="toolbar">
+          <button type="button" onclick="window.print()">Imprimir</button>
+          <a href="${escapeHtml(returnUrl)}" onclick="if (window.opener) { window.close(); }">Voltar ao sistema</a>
+        </nav>
         <main class="receipt">
           <img class="logo" src="${logo}" alt="AD Montese" />
           <h1>Recibo de Doacao</h1>
@@ -608,7 +639,6 @@ function printReceipt(draft: ReceiptDraft) {
           <p class="emitted">Emitido em: ${emittedAt}</p>
           <div class="cut"></div>
         </main>
-        <script>window.onload = () => { window.print(); };</script>
       </body>
     </html>
   `);
