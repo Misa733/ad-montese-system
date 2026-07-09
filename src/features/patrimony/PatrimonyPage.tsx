@@ -109,6 +109,17 @@ export function PatrimonyPage() {
     [assets],
   );
 
+  useEffect(() => {
+    const assetCode = new URLSearchParams(window.location.search).get("bem");
+    if (!assetCode || !assets.length) return;
+
+    const asset = findAssetByCodeOrText(assets, assetCode);
+    if (!asset) return;
+
+    setSelectedAsset(asset);
+    setTab("profile");
+  }, [assets]);
+
   function refresh() {
     setRevision((current) => current + 1);
   }
@@ -925,8 +936,7 @@ function CameraScannerModal({ assets, onClose }: { assets: PatrimonyAsset[]; onC
   }
 
   function findAsset(value: string, successMessage: string) {
-    const normalized = extractAssetCode(value).trim().toLowerCase();
-    const found = assets.find((asset) => asset.code.toLowerCase().includes(normalized) || asset.description.toLowerCase().includes(normalized));
+    const found = findAssetByCodeOrText(assets, value);
     setSelected(found ?? null);
     setResultStatus(found ? successMessage : "Nao encontrado");
   }
@@ -1006,6 +1016,12 @@ function extractAssetCode(value: string) {
   } catch {
     return value;
   }
+}
+
+function findAssetByCodeOrText(assets: PatrimonyAsset[], value: string) {
+  const normalized = extractAssetCode(value).trim().toLowerCase();
+  if (!normalized) return null;
+  return assets.find((asset) => asset.code.toLowerCase() === normalized || asset.code.toLowerCase().includes(normalized) || asset.description.toLowerCase().includes(normalized)) ?? null;
 }
 
 const reportColumns: ColumnDef<{ grupo: string; registros: number; valor: number }>[] = [
