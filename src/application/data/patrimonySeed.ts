@@ -5,6 +5,7 @@ type DemoCategory = "Mobiliario" | "Som e multimedia" | "Instrumentos" | "Climat
 interface CongregationSeed {
   code: string;
   name: string;
+  sector: string;
   responsible: string;
   address: string;
   neighborhood: string;
@@ -27,18 +28,24 @@ interface AssetTemplate {
 }
 
 export const PATRIMONY_CONGREGATIONS: CongregationSeed[] = [
-  { code: "MR", name: "Marechal Rondon", responsible: "Lindomar Lima da Conceicao", address: "Rua E27, Casa 106 - Parque Araturi", neighborhood: "Marechal Rondon" },
-  { code: "M1", name: "Metropole 1", responsible: "Eliaquim Jose Cordeiro de Sousa", address: "Rua A, 76 A - Loteamento Metropole Sul", neighborhood: "Ciro Gomes" },
-  { code: "M2", name: "Metropole 2", responsible: "Tarcisio Jeronimo do Nascimento", address: "Rua Sargento Feitosa, 588 - Nova Metropole", neighborhood: "Nova Metropole" },
-  { code: "M3", name: "Metropole 3", responsible: "Geraldo Manoel de Araujo", address: "Rua Joao Bezerra, 1581 - Conjunto Metropolitano", neighborhood: "Patricia Gomes" },
-  { code: "MH", name: "Monte Horebe", responsible: "Carlos Andre Azevedo Monteiro", address: "Rua Idealista, 81 - Residencial Tebas", neighborhood: "Cajueiros" },
-  { code: "PA", name: "Parque Araturi", responsible: "Luis Alberto da Silva Cabral", address: "Rua 341, Bloco 2, Apto 12 B - Nova Metropole", neighborhood: "Araturi" },
-  { code: "PC", name: "Planalto Caucaia", responsible: "Marcio Atila Rocha Miranda", address: "Rua 121, 66 - Planalto Caucaia", neighborhood: "Planalto Caucaia" },
-  { code: "TU", name: "Tucunduba", responsible: "Manoel Alves do Nascimento", address: "Rua Tucunduba, 419 - Fundos", neighborhood: "Tucunduba" },
-  { code: "MI", name: "Missionaria", responsible: "Manoel Alves do Nascimento", address: "Endereco em atualizacao", neighborhood: "Setor 2" },
-  { code: "IC", name: "Icarai", responsible: "Jeff Zerbine da Silva", address: "Rua Walter Moura, 650", neighborhood: "Icarai" },
-  { code: "C15", name: "Comunidade 15", responsible: "Secretaria do Setor 2", address: "Endereco em cadastramento", neighborhood: "Setor 2" },
-  { code: "AR", name: "Arianopolis", responsible: "Jose Edivan Sousa Rocha", address: "Rua W19, Casa 29 - Araturi", neighborhood: "Arianopolis" },
+  { code: "MR", name: "Marechal Rondon", sector: "Setor 02", responsible: "Lindomar Lima da Conceicao", address: "Rua E27, Casa 106 - Parque Araturi", neighborhood: "Marechal Rondon" },
+  { code: "M1", name: "Metropole 1", sector: "Setor 02", responsible: "Eliaquim Jose Cordeiro de Sousa", address: "Rua A, 76 A - Loteamento Metropole Sul", neighborhood: "Ciro Gomes" },
+  { code: "M2", name: "Metropole 2", sector: "Setor 02", responsible: "Tarcisio Jeronimo do Nascimento", address: "Rua Sargento Feitosa, 588 - Nova Metropole", neighborhood: "Nova Metropole" },
+  { code: "M3", name: "Metropole 3", sector: "Setor 02", responsible: "Geraldo Manoel de Araujo", address: "Rua Joao Bezerra, 1581 - Conjunto Metropolitano", neighborhood: "Patricia Gomes" },
+  { code: "MH", name: "Monte Horebe", sector: "Setor 02", responsible: "Carlos Andre Azevedo Monteiro", address: "Rua Idealista, 81 - Residencial Tebas", neighborhood: "Cajueiros" },
+  { code: "PA", name: "Parque Araturi", sector: "Setor 02", responsible: "Luis Alberto da Silva Cabral", address: "Rua 341, Bloco 2, Apto 12 B - Nova Metropole", neighborhood: "Araturi" },
+  { code: "PC", name: "Planalto Caucaia", sector: "Setor 02", responsible: "Marcio Atila Rocha Miranda", address: "Rua 121, 66 - Planalto Caucaia", neighborhood: "Planalto Caucaia" },
+  { code: "TU", name: "Tucunduba", sector: "Setor 02", responsible: "Manoel Alves do Nascimento", address: "Rua Tucunduba, 419 - Fundos", neighborhood: "Tucunduba" },
+  { code: "MI", name: "Missionaria", sector: "Setor 02", responsible: "Manoel Alves do Nascimento", address: "Endereco em atualizacao", neighborhood: "Setor 2" },
+  { code: "IC", name: "Icarai", sector: "Setor 02", responsible: "Jeff Zerbine da Silva", address: "Rua Walter Moura, 650", neighborhood: "Icarai" },
+  { code: "C15", name: "Comunidade 15", sector: "Setor 02", responsible: "Secretaria do Setor 2", address: "Endereco em cadastramento", neighborhood: "Setor 2" },
+  { code: "AR", name: "Arianopolis", sector: "Setor 02", responsible: "Jose Edivan Sousa Rocha", address: "Rua W19, Casa 29 - Araturi", neighborhood: "Arianopolis" },
+  { code: "S13", name: "Sede do Setor 13", sector: "Setor 13", responsible: "Coordenacao Setor 13", address: "Av. Central, 1300 - Sede Setor 13", neighborhood: "Centro Ministerial" },
+  { code: "SMG", name: "Sao Miguel", sector: "Setor 13", responsible: "Dirigente Sao Miguel", address: "Rua Sao Miguel, 210 - Comunidade Sao Miguel", neighborhood: "Sao Miguel" },
+  { code: "S4", name: "Sede do Setor 4", sector: "Setor 04", responsible: "Coordenacao Setor 4", address: "Rua Principal, 400 - Sede Setor 4", neighborhood: "Sede Setor 4" },
+  { code: "AVD", name: "Area Verde", sector: "Setor 04", responsible: "Dirigente Area Verde", address: "Rua das Palmeiras, 87 - Area Verde", neighborhood: "Area Verde" },
+  { code: "SCE", name: "Santa Cecilia", sector: "Setor 04", responsible: "Dirigente Santa Cecilia", address: "Rua Santa Cecilia, 55", neighborhood: "Santa Cecilia" },
+  { code: "EST", name: "Sede Estadual", sector: "Sede Estadual", responsible: "Administracao Estadual", address: "Av. Estadual, 957 - Montese", neighborhood: "Montese" },
 ];
 
 const templates: AssetTemplate[] = [
@@ -150,7 +157,7 @@ function seedAsset(congregation: CongregationSeed, template: AssetTemplate, sequ
     warranty: forceImovel ? "Nao aplicavel" : sequence % 4 === 0 ? "12 meses" : "Sem garantia ativa",
     congregation: congregation.name,
     congregationCode: congregation.code,
-    sector: "Setor 02",
+    sector: congregation.sector,
     area: template.category === "Imovel" ? "Administracao patrimonial" : "Culto e apoio",
     location: congregation.address,
     internalLocation: template.internalLocation,
@@ -234,6 +241,9 @@ function buildInventories(): PatrimonyInventory[] {
     ["Inventario Congregacao MR", "Culto e apoio", "Setor 02", "Marechal Rondon", "Lindomar Lima da Conceicao", "Concluido", 46, 46, 0, 0],
     ["Inventario Congregacao PA", "Culto e apoio", "Setor 02", "Parque Araturi", "Luis Alberto da Silva Cabral", "Com divergencias", 52, 45, 5, 2],
     ["Inventario Equipamentos de Som", "Culto e apoio", "Setor 02", "Todos", "Equipe de midia", "Pendente", 28, 16, 11, 1],
+    ["Inventario Setor 13 - Sede e Sao Miguel", "Culto e apoio", "Setor 13", "Todos", "Coordenacao Setor 13", "Em andamento", 74, 41, 31, 2],
+    ["Inventario Setor 4 - Area Verde e Santa Cecilia", "Culto e apoio", "Setor 04", "Todos", "Coordenacao Setor 4", "Planejado", 96, 0, 96, 0],
+    ["Inventario Sede Estadual", "Administracao patrimonial", "Sede Estadual", "Sede Estadual", "Administracao Estadual", "Em andamento", 58, 32, 24, 2],
   ] as const;
 
   return inventoryData.map(([name, area, sector, congregation, responsible, status, total, checked, pending, notFound], index) => ({
@@ -266,6 +276,12 @@ function buildProperties(): PatrimonyProperty[] {
     ["Sala de apoio M1", "Proprio", "Metropole 1", "Rua A, 76 A", "Ciro Gomes", "Declaracao", 38000, "45 m2", "60 m2", "Eliaquim Jose Cordeiro de Sousa"],
     ["Templo alugado PC", "Alugado", "Planalto Caucaia", "Rua 121, 66", "Planalto Caucaia", "Contrato de aluguel", 0, "200 m2", "260 m2", "Marcio Atila Rocha Miranda"],
     ["Terreno Sede Setor 2", "Proprio", "Sede", "Conjunto Araturi", "Conjunto Araturi", "Sem documentacao", 120000, "0 m2", "500 m2", "Tesouraria Setor 2"],
+    ["Sede do Setor 13", "Proprio", "Sede do Setor 13", "Av. Central, 1300", "Centro Ministerial", "Escritura", 260000, "310 m2", "520 m2", "Coordenacao Setor 13"],
+    ["Templo Sao Miguel", "Proprio", "Sao Miguel", "Rua Sao Miguel, 210", "Sao Miguel", "Contrato de compra e venda", 145000, "210 m2", "330 m2", "Dirigente Sao Miguel"],
+    ["Sede do Setor 4", "Proprio", "Sede do Setor 4", "Rua Principal, 400", "Sede Setor 4", "Escritura", 235000, "280 m2", "470 m2", "Coordenacao Setor 4"],
+    ["Templo Area Verde", "Cedido", "Area Verde", "Rua das Palmeiras, 87", "Area Verde", "Termo de cessao", 98000, "170 m2", "260 m2", "Dirigente Area Verde"],
+    ["Templo Santa Cecilia", "Alugado", "Santa Cecilia", "Rua Santa Cecilia, 55", "Santa Cecilia", "Contrato de aluguel", 0, "190 m2", "250 m2", "Dirigente Santa Cecilia"],
+    ["Sede Estadual", "Proprio", "Sede Estadual", "Av. Estadual, 957 - Montese", "Montese", "Escritura", 620000, "860 m2", "1300 m2", "Administracao Estadual"],
   ];
 
   return templates.map(([name, type, congregation, address, neighborhood, documentType, value, builtArea, landArea, responsible], index) => ({
@@ -273,7 +289,7 @@ function buildProperties(): PatrimonyProperty[] {
     name,
     congregation,
     area: "Administracao patrimonial",
-    sector: "Setor 02",
+    sector: sectorForProperty(congregation),
     address,
     neighborhood,
     cep: "00.000-000",
@@ -290,4 +306,8 @@ function buildProperties(): PatrimonyProperty[] {
     observations: "Imovel demonstrativo para fluxo patrimonial do prototipo.",
     sourceSheet: "Seed/demo patrimonial",
   }));
+}
+
+function sectorForProperty(congregation: string) {
+  return PATRIMONY_CONGREGATIONS.find((item) => item.name === congregation)?.sector ?? "Setor 02";
 }
