@@ -39,6 +39,16 @@ import { downloadXlsx } from "@/lib/export";
 import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 
 type PatrimonyTab = "dashboard" | "catalog" | "form" | "profile" | "inventory" | "movements" | "maintenance" | "properties" | "reports" | "settings";
+type AssetFilters = {
+  area: string;
+  sector: string;
+  congregation: string;
+  category: string;
+  status: string;
+  conservationState: string;
+  responsible: string;
+  documentation: string;
+};
 
 const tabs: Array<{ id: PatrimonyTab; label: string; icon: typeof Boxes }> = [
   { id: "dashboard", label: "Dashboard", icon: Boxes },
@@ -58,7 +68,17 @@ export function PatrimonyPage() {
   const [revision, setRevision] = useState(0);
   const [tab, setTab] = useState<PatrimonyTab>("dashboard");
   const [selectedAsset, setSelectedAsset] = useState<PatrimonyAsset | null>(null);
-  const [assetFilter, setAssetFilter] = useState({ congregation: "Todos", category: "Todos", status: "Todos" });
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [assetFilter, setAssetFilter] = useState({
+    area: "Todos",
+    sector: "Todos",
+    congregation: "Todos",
+    category: "Todos",
+    status: "Todos",
+    conservationState: "Todos",
+    responsible: "Todos",
+    documentation: "Todos",
+  });
   const assets = useMemo(() => patrimonyService.getAssets(), [patrimonyService, revision]);
   const movements = useMemo(() => patrimonyService.getMovements(assets), [assets, patrimonyService, revision]);
   const maintenances = useMemo(() => patrimonyService.getMaintenances(), [patrimonyService, revision]);
@@ -71,6 +91,10 @@ export function PatrimonyPage() {
       congregations: unique(assets.map((asset) => asset.congregation)),
       categories: unique(assets.map((asset) => asset.category)),
       statuses: unique(assets.map((asset) => asset.status)),
+      areas: unique(assets.map((asset) => asset.area)),
+      sectors: unique(assets.map((asset) => asset.sector)),
+      conservationStates: unique(assets.map((asset) => asset.conservationState)),
+      responsibles: unique(assets.map((asset) => asset.responsible)),
     }),
     [assets],
   );
@@ -97,6 +121,7 @@ export function PatrimonyPage() {
         actions={
           <>
             <Badge>{assets.length} bens importados</Badge>
+            <Badge>Planilha + seed demo</Badge>
             <Badge>{draftChanges.filter((draft) => draft.sheetName === "Patrimonio").length} cadastros em rascunho</Badge>
             <Button variant="outline" onClick={() => downloadXlsx("patrimonio.xlsx", filteredAssets as unknown as Array<Record<string, unknown>>)}>
               <Download className="h-4 w-4" />
@@ -105,6 +130,10 @@ export function PatrimonyPage() {
             <Button onClick={() => setTab("form")}>
               <Plus className="h-4 w-4" />
               Novo bem
+            </Button>
+            <Button variant="outline" onClick={() => setScannerOpen(true)}>
+              <Camera className="h-4 w-4" />
+              Escanear patrimonio
             </Button>
           </>
         }
@@ -149,6 +178,7 @@ export function PatrimonyPage() {
       {tab === "properties" ? <PropertiesPanel properties={properties} /> : null}
       {tab === "reports" ? <PatrimonyReports assets={assets} maintenances={maintenances} inventories={inventories} /> : null}
       {tab === "settings" ? <PatrimonySettings assets={assets} /> : null}
+      {scannerOpen ? <CameraScannerModal assets={assets} onClose={() => setScannerOpen(false)} /> : null}
     </div>
   );
 }
@@ -163,6 +193,8 @@ function PatrimonyDashboard({ dashboard, assets }: { dashboard: ReturnType<Retur
     { label: "Sem tombamento", value: dashboard.cards.withoutCode, icon: QrCode },
     { label: "Sem documentacao", value: dashboard.cards.withoutDocumentation, icon: FileText },
     { label: "Inventario pendente", value: dashboard.cards.pendingInventory, icon: ClipboardCheck },
+    { label: "Imoveis cadastrados", value: dashboard.cards.properties, icon: Home },
+    { label: "Proximas manutencoes", value: dashboard.cards.upcomingMaintenances, icon: Wrench },
   ];
   return (
     <div className="grid gap-6">
@@ -187,8 +219,11 @@ function PatrimonyDashboard({ dashboard, assets }: { dashboard: ReturnType<Retur
         <PatrimonyBar title="Patrimonio por Congregacao" data={dashboard.byCongregation} />
         <PatrimonyBar title="Patrimonio por Categoria" data={dashboard.byCategory} />
         <PatrimonyBar title="Estado dos bens" data={dashboard.byStatus} />
+        <PatrimonyBar title="Estado de conservacao" data={dashboard.byConservation} />
         <PatrimonyBar title="Valor patrimonial" data={dashboard.valueByCongregation} currency />
         <PatrimonyBar title="Bens por responsavel" data={dashboard.byResponsible} />
+        <PatrimonyBar title="Bens adquiridos por ano" data={dashboard.acquiredByYear} />
+        <PatrimonyBar title="Inventarios por status" data={dashboard.inventoriesByStatus} />
         <Card>
           <CardHeader>
             <CardTitle>Ultimos patrimonios cadastrados</CardTitle>
@@ -218,9 +253,9 @@ function PatrimonyCatalog({
   onSelect,
 }: {
   assets: PatrimonyAsset[];
-  options: { congregations: string[]; categories: string[]; statuses: string[] };
-  filters: { congregation: string; category: string; status: string };
-  setFilters: (filters: { congregation: string; category: string; status: string }) => void;
+  options: { congregations: string[]; categories: string[]; statuses: string[]; areas: string[]; sectors: string[]; conservationStates: string[]; responsibles: string[] };
+  filters: AssetFilters;
+  setFilters: (filters: AssetFilters) => void;
   onSelect: (asset: PatrimonyAsset) => void;
 }) {
   const columns = useMemo<ColumnDef<PatrimonyAsset>[]>(
@@ -233,8 +268,10 @@ function PatrimonyCatalog({
       { accessorKey: "sector", header: "Setor" },
       { accessorKey: "area", header: "Area" },
       { accessorKey: "responsible", header: "Responsavel" },
+      { accessorKey: "quantity", header: "Qtd" },
       { accessorKey: "status", header: "Situacao", cell: ({ row }) => <Badge>{row.original.status}</Badge> },
-      { accessorKey: "currentValue", header: "Valor", cell: ({ row }) => formatCurrency(row.original.currentValue || row.original.value) },
+      { accessorKey: "conservationState", header: "Estado" },
+      { accessorKey: "currentValue", header: "Valor total", cell: ({ row }) => formatCurrency(getAssetTotal(row.original)) },
       { accessorKey: "acquisitionDate", header: "Data aquisicao" },
       { accessorKey: "lastInventoryAt", header: "Ultima conferencia", cell: ({ row }) => row.original.lastInventoryAt || "Pendente" },
       {
@@ -253,10 +290,22 @@ function PatrimonyCatalog({
   return (
     <div className="grid gap-4">
       <Card className="min-w-0 overflow-hidden">
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <FilterSelect label="Area" value={filters.area} options={options.areas} onChange={(value) => setFilters({ ...filters, area: value })} />
+          <FilterSelect label="Setor" value={filters.sector} options={options.sectors} onChange={(value) => setFilters({ ...filters, sector: value })} />
           <FilterSelect label="Congregacao" value={filters.congregation} options={options.congregations} onChange={(value) => setFilters({ ...filters, congregation: value })} />
           <FilterSelect label="Categoria" value={filters.category} options={options.categories} onChange={(value) => setFilters({ ...filters, category: value })} />
           <FilterSelect label="Situacao" value={filters.status} options={options.statuses} onChange={(value) => setFilters({ ...filters, status: value })} />
+          <FilterSelect label="Estado" value={filters.conservationState} options={options.conservationStates} onChange={(value) => setFilters({ ...filters, conservationState: value })} />
+          <FilterSelect label="Responsavel" value={filters.responsible} options={options.responsibles} onChange={(value) => setFilters({ ...filters, responsible: value })} />
+          <label className="min-w-0 text-xs font-medium text-muted-foreground">
+            Documentacao
+            <Select className="mt-1 w-full" value={filters.documentation} onChange={(event) => setFilters({ ...filters, documentation: event.target.value })}>
+              <option>Todos</option>
+              <option>Com documentacao</option>
+              <option>Sem documentacao</option>
+            </Select>
+          </label>
         </CardContent>
       </Card>
       <div className="lg:hidden">
@@ -355,8 +404,13 @@ function AssetProfile({ asset, onPrintLabel }: { asset?: PatrimonyAsset; onPrint
             <Info label="Setor" value={asset.sector} />
             <Info label="Area" value={asset.area} />
             <Info label="Responsavel" value={asset.responsible} />
-            <Info label="Valor atual" value={formatCurrency(asset.currentValue || asset.value)} />
+            <Info label="Quantidade" value={asset.quantity || 1} />
+            <Info label="Valor unitario" value={formatCurrency(asset.unitValue || asset.value)} />
+            <Info label="Valor total" value={formatCurrency(getAssetTotal(asset))} />
+            <Info label="Estado" value={asset.conservationState || "Nao informado"} />
+            <Info label="Marca / modelo" value={[asset.brand, asset.model].filter(Boolean).join(" / ") || "Nao informado"} />
             <Info label="Data aquisicao" value={asset.acquisitionDate || "Nao informada"} />
+            <Info label="Forma aquisicao" value={asset.acquisitionMethod || "Nao informada"} />
             <Info label="Documentos" value={asset.documentation} />
             <Info label="Ultima conferencia" value={asset.lastInventoryAt || "Pendente"} />
           </div>
@@ -400,12 +454,16 @@ function InventoryPanel({
 }) {
   const [scope, setScope] = useState({ area: "Todos", sector: "Todos", congregation: "Todos" });
   const [activeId, setActiveId] = useState(inventories[0]?.id ?? "");
+  const [scannerOpen, setScannerOpen] = useState(false);
   const activeInventory = inventories.find((inventory) => inventory.id === activeId);
   const scopedAssets = filterAssets(assets, { category: "Todos", status: "Todos", congregation: scope.congregation }).filter(
     (asset) => (scope.area === "Todos" || asset.area === scope.area) && (scope.sector === "Todos" || asset.sector === scope.sector),
   );
-  const checked = activeInventory ? Object.keys(activeInventory.checks).length : 0;
-  const percent = scopedAssets.length ? Math.round((checked / scopedAssets.length) * 100) : 0;
+  const checked = activeInventory?.checkedItems ?? (activeInventory ? Object.keys(activeInventory.checks).length : 0);
+  const totalItems = activeInventory?.totalItems ?? scopedAssets.length;
+  const pendingItems = activeInventory?.pendingItems ?? Math.max(scopedAssets.length - checked, 0);
+  const notFoundItems = activeInventory?.notFoundItems ?? 0;
+  const percent = activeInventory?.completionPercentage ?? (totalItems ? Math.round((checked / totalItems) * 100) : 0);
 
   function createInventory() {
     const inventory = service.createInventory(scope);
@@ -439,14 +497,35 @@ function InventoryPanel({
               <ClipboardCheck className="h-4 w-4" />
               Novo inventario
             </Button>
+            <Button variant="outline" className="w-full" onClick={() => setScannerOpen(true)}>
+              <Camera className="h-4 w-4" />
+              Escanear
+            </Button>
           </div>
         </CardContent>
       </Card>
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="Concluido" value={`${percent}%`} />
         <Metric label="Conferidos" value={checked} />
-        <Metric label="Pendentes" value={Math.max(scopedAssets.length - checked, 0)} />
+        <Metric label="Pendentes" value={pendingItems} />
+        <Metric label="Nao localizados" value={notFoundItems} />
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Inventarios cadastrados</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {inventories.map((inventory) => (
+            <button key={inventory.id} className={cn("rounded-md border p-3 text-left", activeId === inventory.id ? "border-primary bg-surface" : "border-border")} onClick={() => setActiveId(inventory.id)}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{inventory.name ?? `Inventario ${inventory.congregation}`}</span>
+                <Badge>{inventory.status ?? (inventory.finishedAt ? "Concluido" : "Em andamento")}</Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">{inventory.responsible ?? "Responsavel nao informado"} | {inventory.completionPercentage ?? 0}% concluido</p>
+            </button>
+          ))}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>Conferencia</CardTitle>
@@ -479,6 +558,7 @@ function InventoryPanel({
           Leitura por camera preparada: o QR Code abre a ficha do bem e pode ser usado na conferencia do inventario.
         </CardContent>
       </Card>
+      {scannerOpen ? <CameraScannerModal assets={assets} onClose={() => setScannerOpen(false)} /> : null}
     </div>
   );
 }
@@ -750,19 +830,106 @@ function EmptyState({ title, description }: { title: string; description: string
   );
 }
 
+function CameraScannerModal({ assets, onClose }: { assets: PatrimonyAsset[]; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<PatrimonyAsset | null>(assets[0] ?? null);
+  const [resultStatus, setResultStatus] = useState("Aguardando leitura");
+
+  function search() {
+    const normalized = query.trim().toLowerCase();
+    const found = assets.find((asset) => asset.code.toLowerCase().includes(normalized) || asset.description.toLowerCase().includes(normalized));
+    setSelected(found ?? null);
+    setResultStatus(found ? "Patrimonio localizado" : "Nao encontrado");
+  }
+
+  function mark(status: string) {
+    setResultStatus(status);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+      <Card className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-b-none sm:rounded-lg">
+        <CardHeader className="flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle>Conferencia por camera</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Scanner visual preparado para integracao real com camera e QR Code.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar">
+            <FileText className="h-4 w-4" />
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-primary/40 bg-surface p-5 text-center">
+              <QrCode className="h-16 w-16 text-primary" />
+              <p className="mt-3 font-semibold">CameraScanner</p>
+              <p className="mt-1 text-sm text-muted-foreground">Aponte para a etiqueta patrimonial ou digite o codigo manualmente.</p>
+              <div className="mt-4 h-28 w-28 rounded-lg border-2 border-primary/60" />
+            </div>
+            <div className="grid gap-3">
+              <label className="text-xs font-medium text-muted-foreground">
+                Codigo patrimonial
+                <Input className="mt-1" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ex: ADM-S02-MR-SOM-0001" />
+              </label>
+              <Button onClick={search}>
+                <Search className="h-4 w-4" />
+                Buscar
+              </Button>
+              <Badge>{resultStatus}</Badge>
+              {selected ? (
+                <div className="grid gap-2 rounded-md border border-border p-3">
+                  <p className="font-semibold">{selected.description}</p>
+                  <p className="text-sm text-muted-foreground">{selected.code} | {selected.congregation} | {selected.internalLocation}</p>
+                  <Info label="Responsavel" value={selected.responsible} />
+                  <Info label="Estado" value={selected.conservationState} />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum patrimonio selecionado.</p>
+              )}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button onClick={() => mark("Existencia confirmada")} disabled={!selected}>
+              <BadgeCheck className="h-4 w-4" />
+              Confirmar existencia
+            </Button>
+            <Button variant="outline" onClick={() => mark("Marcado como nao localizado")} disabled={!selected}>
+              Nao localizado
+            </Button>
+            <Button variant="outline" onClick={() => mark("Enviado para manutencao")} disabled={!selected}>
+              <Wrench className="h-4 w-4" />
+              Manutencao
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 const reportColumns: ColumnDef<{ grupo: string; registros: number; valor: number }>[] = [
   { accessorKey: "grupo", header: "Grupo" },
   { accessorKey: "registros", header: "Registros" },
   { accessorKey: "valor", header: "Valor", cell: ({ row }) => formatCurrency(row.original.valor) },
 ];
 
-function filterAssets(assets: PatrimonyAsset[], filters: { congregation: string; category: string; status: string }) {
+function filterAssets(assets: PatrimonyAsset[], filters: Partial<AssetFilters>) {
   return assets.filter((asset) => {
-    if (filters.congregation !== "Todos" && asset.congregation !== filters.congregation) return false;
-    if (filters.category !== "Todos" && asset.category !== filters.category) return false;
-    if (filters.status !== "Todos" && asset.status !== filters.status) return false;
+    if (filters.area && filters.area !== "Todos" && asset.area !== filters.area) return false;
+    if (filters.sector && filters.sector !== "Todos" && asset.sector !== filters.sector) return false;
+    if (filters.congregation && filters.congregation !== "Todos" && asset.congregation !== filters.congregation) return false;
+    if (filters.category && filters.category !== "Todos" && asset.category !== filters.category) return false;
+    if (filters.status && filters.status !== "Todos" && asset.status !== filters.status) return false;
+    if (filters.conservationState && filters.conservationState !== "Todos" && asset.conservationState !== filters.conservationState) return false;
+    if (filters.responsible && filters.responsible !== "Todos" && asset.responsible !== filters.responsible) return false;
+    if (filters.documentation === "Com documentacao" && (!asset.documents.length || asset.documentation.toLowerCase().includes("sem document"))) return false;
+    if (filters.documentation === "Sem documentacao" && asset.documents.length && !asset.documentation.toLowerCase().includes("sem document")) return false;
     return true;
   });
+}
+
+function getAssetTotal(asset: PatrimonyAsset) {
+  return asset.totalValue || asset.currentValue || asset.value || (asset.unitValue || 0) * Math.max(asset.quantity || 1, 1);
 }
 
 function buildReportRows(assets: PatrimonyAsset[], report: string) {
