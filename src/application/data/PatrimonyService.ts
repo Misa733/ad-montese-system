@@ -1,5 +1,6 @@
 import { findValue, normalizeText, sheetValueToString, type SheetDraftChange } from "@/application/data/SpreadsheetDataService";
 import type { SheetCellValue, SheetRow, SpreadsheetData, WorksheetData } from "@/domain/sheets/types";
+import { PATRIMONY_SEED_ASSETS } from "./patrimonySeed";
 
 export type PatrimonyStatus = "Ativo" | "Em manutencao" | "Baixado" | "Transferido" | "Nao localizado";
 export type InventoryCheckStatus = "Confirmado" | "Nao localizado" | "Em manutencao" | "Transferido" | "Baixado";
@@ -106,7 +107,7 @@ export class PatrimonyService {
   constructor(private readonly spreadsheet?: SpreadsheetData) {}
 
   getAssets() {
-    return dedupeAssets([...this.getImportedAssets(), ...readLocalList<PatrimonyAsset>(LOCAL_ASSETS_KEY)]);
+    return dedupeAssets([...this.getImportedAssets(), ...PATRIMONY_SEED_ASSETS, ...readLocalList<PatrimonyAsset>(LOCAL_ASSETS_KEY)]);
   }
 
   getMovements(assets = this.getAssets()) {
@@ -313,12 +314,14 @@ export class PatrimonyService {
     const first = meaningful[0] ?? "";
     const categorySeed = explicitDescription || first;
     const categoryNorm = normalizeText(categorySeed);
+    const hasAssetStatus = meaningful.some((value) => /pr[óo]prio|alugado|cedido|doado|baixado|manuten/i.test(value));
+    const isSummaryRow = ["templos", "terrenos"].includes(normalizeText(first));
     const looksLikeAsset =
-      Boolean(explicitDescription) ||
+      (Boolean(explicitDescription) && hasAssetStatus) ||
       ["templo", "terreno", "casa pastoral", "moveis", "móveis", "som", "instrumento", "equipamento", "utensilio"].some((term) => categoryNorm.includes(normalizeText(term))) ||
       meaningful.some((value) => normalizeText(value).includes("documento existente"));
 
-    if (!looksLikeAsset || ADMIN_SHEETS.has(normalizeText(sheet.title))) return null;
+    if (!looksLikeAsset || !hasAssetStatus || isSummaryRow || ADMIN_SHEETS.has(normalizeText(sheet.title))) return null;
 
     const statusText = sheetValueToString(findValue(row, ["situacao", "situação", "status", "tipo"])) || meaningful.find((value) => /proprio|alugado|cedido|doado|baixado|manut/i.test(value)) || "Ativo";
     const documentation = sheetValueToString(findValue(row, ["documentacao", "documentação", "documento"])) || meaningful.find((value) => /contrato|escritura|declara|documenta|nota/i.test(value)) || "Sem documentacao";
