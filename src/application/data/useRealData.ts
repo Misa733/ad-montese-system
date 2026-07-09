@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useSpreadsheet } from "@/application/import/useSpreadsheet";
 import { DashboardService } from "./DashboardService";
 import { OrganizationService } from "./OrganizationService";
+import { PatrimonyService } from "./PatrimonyService";
 import { ReportsService } from "./ReportsService";
 import { SpreadsheetDataService } from "./SpreadsheetDataService";
 import { TitheService } from "./TitheService";
@@ -22,6 +23,7 @@ export function useRealData() {
     const congregations = organizationService.getCongregations();
     const dashboardService = new DashboardService(spreadsheet, movements, tithePayers, titheContributions, congregations);
     const reportsService = new ReportsService(spreadsheet, movements, titheContributions);
+    const patrimonyService = new PatrimonyService(spreadsheet);
 
     return {
       spreadsheet,
@@ -31,6 +33,7 @@ export function useRealData() {
       organizationService,
       dashboardService,
       reportsService,
+      patrimonyService,
       movements,
       tithePayers,
       titheContributions,

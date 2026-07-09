@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Banknote, CalendarDays, Church, CreditCard, Download, FileText, HandCoins, Landmark, Receipt, RefreshCcw, TrendingDown, TrendingUp, Users } from "lucide-react";
+import { Banknote, Boxes, CalendarDays, Church, CreditCard, Download, FileText, HandCoins, Landmark, Receipt, RefreshCcw, TrendingDown, TrendingUp, Users, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { DashboardService } from "@/application/data/DashboardService";
@@ -14,9 +14,10 @@ import { Select } from "@/components/ui/select";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 export function DashboardPage() {
-  const { dashboardService, organizationService, movements, tithePayers } = useRealData();
+  const { dashboardService, organizationService, movements, tithePayers, patrimonyService } = useRealData();
   const [filters, setFilters] = useState<GlobalFilters>(emptyGlobalFilters);
   const model = dashboardService.build(filters);
+  const patrimonyModel = patrimonyService.buildDashboard();
 
   const options = useMemo(
     () => ({
@@ -51,6 +52,10 @@ export function DashboardPage() {
     { label: "Setores", value: model.cards.sectorCount, icon: CalendarDays },
     { label: "Areas", value: model.cards.areaCount, icon: Landmark },
     { label: "Dizimistas", value: model.cards.tithePayerCount, icon: Users },
+    { label: "Total patrimonio", value: patrimonyModel.cards.total, icon: Boxes },
+    { label: "Valor patrimonio", value: formatCurrency(patrimonyModel.cards.estimatedValue), icon: Landmark },
+    { label: "Inventarios pendentes", value: patrimonyModel.cards.pendingInventory, icon: FileText },
+    { label: "Bens em manutencao", value: patrimonyModel.cards.inMaintenance, icon: Wrench },
     { label: "Ultima sincronizacao", value: formatDateTime(model.cards.loadedAt), icon: RefreshCcw },
   ];
 

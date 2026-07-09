@@ -6,6 +6,7 @@ import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { IntegrationsPage } from "@/features/integrations/IntegrationsPage";
 import { MembersPage } from "@/features/members/MembersPage";
 import { ModulePage } from "@/features/modules/ModulePage";
+import { PatrimonyPage } from "@/features/patrimony/PatrimonyPage";
 
 export function App() {
   const [isDark, setIsDark] = useState(() => localStorage.getItem("ad-montese.theme") === "dark");
@@ -32,7 +33,7 @@ export function App() {
             { path: "congregacoes", element: <ModulePage moduleName="Congregacoes" /> },
             { path: "secretaria", element: <ModulePage moduleName="Secretaria" /> },
             { path: "tesouraria", element: <ModulePage moduleName="Tesouraria" /> },
-            { path: "patrimonio", element: <ModulePage moduleName="Patrimonio" /> },
+            { path: "patrimonio", element: <PatrimonyPage /> },
             { path: "eventos", element: <ModulePage moduleName="Eventos" /> },
             { path: "relatorios", element: <ModulePage moduleName="Relatorios" /> },
             { path: "dados", element: <ModulePage moduleName="Dados da Planilha" /> },
