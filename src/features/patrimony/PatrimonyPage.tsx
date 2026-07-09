@@ -15,7 +15,7 @@ import {
   Settings,
   Wrench,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
@@ -39,6 +39,16 @@ import { downloadXlsx } from "@/lib/export";
 import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 
 type PatrimonyTab = "dashboard" | "catalog" | "form" | "profile" | "inventory" | "movements" | "maintenance" | "properties" | "reports" | "settings";
+type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => {
+  detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+};
+
+declare global {
+  interface Window {
+    BarcodeDetector?: BarcodeDetectorConstructor;
+  }
+}
+
 type AssetFilters = {
   area: string;
   sector: string;
@@ -831,15 +841,94 @@ function EmptyState({ title, description }: { title: string; description: string
 }
 
 function CameraScannerModal({ assets, onClose }: { assets: PatrimonyAsset[]; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<PatrimonyAsset | null>(assets[0] ?? null);
-  const [resultStatus, setResultStatus] = useState("Aguardando leitura");
+  const [resultStatus, setResultStatus] = useState("Solicitando acesso a camera");
+  const [cameraReady, setCameraReady] = useState(false);
+  const [scannerSupported, setScannerSupported] = useState(Boolean(window.BarcodeDetector));
+
+  useEffect(() => {
+    let cancelled = false;
+    let animationFrame = 0;
+
+    async function startCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setResultStatus("Camera indisponivel neste navegador. Use a busca manual.");
+        setScannerSupported(false);
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        setCameraReady(true);
+
+        if (!window.BarcodeDetector) {
+          setScannerSupported(false);
+          setResultStatus("Camera aberta. Leitura automatica nao suportada; digite o codigo abaixo.");
+          return;
+        }
+
+        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        setResultStatus("Aponte a camera para o QR Code da etiqueta.");
+
+        const scan = async () => {
+          if (cancelled || !videoRef.current) return;
+          try {
+            if (videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+              const codes = await detector.detect(videoRef.current);
+              const rawValue = codes[0]?.rawValue;
+              if (rawValue) {
+                const parsedCode = extractAssetCode(rawValue);
+                setQuery(parsedCode);
+                findAsset(parsedCode, "QR Code lido pela camera");
+                return;
+              }
+            }
+          } catch {
+            setResultStatus("Nao consegui ler este quadro. Aproxime a etiqueta ou use a busca manual.");
+          }
+          animationFrame = window.requestAnimationFrame(scan);
+        };
+
+        animationFrame = window.requestAnimationFrame(scan);
+      } catch {
+        setResultStatus("Permissao da camera negada ou indisponivel. Use a busca manual.");
+      }
+    }
+
+    startCamera();
+
+    return () => {
+      cancelled = true;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, []);
 
   function search() {
-    const normalized = query.trim().toLowerCase();
+    findAsset(query, "Patrimonio localizado");
+  }
+
+  function findAsset(value: string, successMessage: string) {
+    const normalized = extractAssetCode(value).trim().toLowerCase();
     const found = assets.find((asset) => asset.code.toLowerCase().includes(normalized) || asset.description.toLowerCase().includes(normalized));
     setSelected(found ?? null);
-    setResultStatus(found ? "Patrimonio localizado" : "Nao encontrado");
+    setResultStatus(found ? successMessage : "Nao encontrado");
   }
 
   function mark(status: string) {
@@ -852,7 +941,7 @@ function CameraScannerModal({ assets, onClose }: { assets: PatrimonyAsset[]; onC
         <CardHeader className="flex-row items-start justify-between gap-3">
           <div>
             <CardTitle>Conferencia por camera</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">Scanner visual preparado para integracao real com camera e QR Code.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Use a camera do celular para ler a etiqueta patrimonial ou informe o codigo manualmente.</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar">
             <FileText className="h-4 w-4" />
@@ -860,11 +949,14 @@ function CameraScannerModal({ assets, onClose }: { assets: PatrimonyAsset[]; onC
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-primary/40 bg-surface p-5 text-center">
-              <QrCode className="h-16 w-16 text-primary" />
-              <p className="mt-3 font-semibold">CameraScanner</p>
-              <p className="mt-1 text-sm text-muted-foreground">Aponte para a etiqueta patrimonial ou digite o codigo manualmente.</p>
-              <div className="mt-4 h-28 w-28 rounded-lg border-2 border-primary/60" />
+            <div className="relative min-h-72 overflow-hidden rounded-lg border border-border bg-black">
+              <video ref={videoRef} className="h-72 w-full object-cover" playsInline muted />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="h-40 w-40 rounded-xl border-2 border-white/80 shadow-[0_0_0_999px_rgba(0,0,0,0.28)]" />
+              </div>
+              <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/65 px-3 py-2 text-xs text-white">
+                {cameraReady ? (scannerSupported ? "Camera ativa: procurando QR Code" : "Camera ativa: leitura automatica indisponivel") : "Abrindo camera"}
+              </div>
             </div>
             <div className="grid gap-3">
               <label className="text-xs font-medium text-muted-foreground">
@@ -905,6 +997,15 @@ function CameraScannerModal({ assets, onClose }: { assets: PatrimonyAsset[]; onC
       </Card>
     </div>
   );
+}
+
+function extractAssetCode(value: string) {
+  try {
+    const url = new URL(value);
+    return url.searchParams.get("bem") ?? value;
+  } catch {
+    return value;
+  }
 }
 
 const reportColumns: ColumnDef<{ grupo: string; registros: number; valor: number }>[] = [
