@@ -576,27 +576,42 @@ function InventoryPanel({
   onRefresh: () => void;
 }) {
   const [scope, setScope] = useState({ area: "Todos", sector: "Todos", congregation: "Todos" });
+  const [inventoryYear, setInventoryYear] = useState(String(new Date().getFullYear()));
+  const [inventoryResponsible, setInventoryResponsible] = useState("Comissao patrimonial");
   const [activeId, setActiveId] = useState(inventories[0]?.id ?? "");
   const [scannerOpen, setScannerOpen] = useState(false);
   const activeInventory = inventories.find((inventory) => inventory.id === activeId);
-  const scopedAssets = filterAssets(assets, { category: "Todos", status: "Todos", congregation: scope.congregation }).filter(
-    (asset) => (scope.area === "Todos" || asset.area === scope.area) && (scope.sector === "Todos" || asset.sector === scope.sector),
+  const activeScope = activeInventory
+    ? { area: activeInventory.area || "Todos", sector: activeInventory.sector || "Todos", congregation: activeInventory.congregation || "Todos" }
+    : scope;
+  const scopedAssets = filterAssets(assets, { category: "Todos", status: "Todos", congregation: activeScope.congregation }).filter(
+    (asset) => (activeScope.area === "Todos" || asset.area === activeScope.area) && (activeScope.sector === "Todos" || asset.sector === activeScope.sector),
   );
-  const checked = activeInventory?.checkedItems ?? (activeInventory ? Object.keys(activeInventory.checks).length : 0);
-  const totalItems = activeInventory?.totalItems ?? scopedAssets.length;
-  const pendingItems = activeInventory?.pendingItems ?? Math.max(scopedAssets.length - checked, 0);
-  const notFoundItems = activeInventory?.notFoundItems ?? 0;
-  const percent = activeInventory?.completionPercentage ?? (totalItems ? Math.round((checked / totalItems) * 100) : 0);
+  const inventoryStats = buildInventoryStats(activeInventory, scopedAssets);
+  const isFinished = Boolean(activeInventory?.finishedAt) || activeInventory?.status === "Concluido";
 
   function createInventory() {
-    const inventory = service.createInventory(scope);
+    const scopeAssets = filterAssets(assets, { category: "Todos", status: "Todos", congregation: scope.congregation }).filter(
+      (asset) => (scope.area === "Todos" || asset.area === scope.area) && (scope.sector === "Todos" || asset.sector === scope.sector),
+    );
+    const inventory = service.createInventory({
+      ...scope,
+      name: `Inventario anual ${inventoryYear} - ${scope.congregation === "Todos" ? scope.sector : scope.congregation}`,
+      responsible: inventoryResponsible,
+      status: "Em andamento",
+      totalItems: scopeAssets.length,
+      pendingItems: scopeAssets.length,
+      checkedItems: 0,
+      notFoundItems: 0,
+      completionPercentage: 0,
+    });
     setActiveId(inventory.id);
     onRefresh();
     toast.success("Inventario iniciado");
   }
 
   function check(asset: PatrimonyAsset, status: InventoryCheckStatus) {
-    if (!activeInventory) return;
+    if (!activeInventory || isFinished) return;
     const now = new Date();
     service.updateInventoryCheck(activeInventory.id, asset.code, {
       status,
@@ -611,28 +626,32 @@ function InventoryPanel({
   return (
     <div className="grid gap-4">
       <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-4">
+        <CardHeader>
+          <CardTitle>Planejamento do inventario anual</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 p-4 md:grid-cols-3 xl:grid-cols-6">
+          <Field label="Ano" value={inventoryYear} onChange={setInventoryYear} />
+          <Field label="Responsavel" value={inventoryResponsible} onChange={setInventoryResponsible} />
           <FilterSelect label="Area" value={scope.area} options={unique(assets.map((asset) => asset.area))} onChange={(value) => setScope({ ...scope, area: value })} />
           <FilterSelect label="Setor" value={scope.sector} options={unique(assets.map((asset) => asset.sector))} onChange={(value) => setScope({ ...scope, sector: value })} />
           <FilterSelect label="Congregacao" value={scope.congregation} options={unique(assets.map((asset) => asset.congregation))} onChange={(value) => setScope({ ...scope, congregation: value })} />
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2 xl:col-span-1">
             <Button className="w-full" onClick={createInventory}>
               <ClipboardCheck className="h-4 w-4" />
-              Novo inventario
-            </Button>
-            <Button variant="outline" className="w-full" onClick={() => setScannerOpen(true)}>
-              <Camera className="h-4 w-4" />
-              Escanear
+              Abrir inventario
             </Button>
           </div>
         </CardContent>
       </Card>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Metric label="Concluido" value={`${percent}%`} />
-        <Metric label="Conferidos" value={checked} />
-        <Metric label="Pendentes" value={pendingItems} />
-        <Metric label="Nao localizados" value={notFoundItems} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <Metric label="Concluido" value={`${inventoryStats.percent}%`} />
+        <Metric label="Itens no escopo" value={inventoryStats.total} />
+        <Metric label="Conferidos" value={inventoryStats.checked} />
+        <Metric label="Pendentes" value={inventoryStats.pending} />
+        <Metric label="Nao localizados" value={inventoryStats.notFound} />
+        <Metric label="Divergencias" value={inventoryStats.divergences} />
       </div>
+      <InventoryProgressBar percent={inventoryStats.percent} />
       <Card>
         <CardHeader>
           <CardTitle>Inventarios cadastrados</CardTitle>
@@ -651,22 +670,39 @@ function InventoryPanel({
       </Card>
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle>Conferencia</CardTitle>
-          <Button variant="outline" onClick={() => activeInventory && (service.finishInventory(activeInventory.id), onRefresh())} disabled={!activeInventory}>
-            Finalizar
-          </Button>
+          <div>
+            <CardTitle>Conferencia do inventario</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {activeInventory ? `${activeInventory.name ?? "Inventario"} | ${activeScope.sector} | ${activeScope.congregation}` : "Selecione ou abra um inventario para iniciar."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setScannerOpen(true)} disabled={!activeInventory || isFinished}>
+              <Camera className="h-4 w-4" />
+              Escanear
+            </Button>
+            <Button variant="outline" onClick={() => activeInventory && (service.finishInventory(activeInventory.id), onRefresh())} disabled={!activeInventory || inventoryStats.pending > 0 || isFinished}>
+              Finalizar
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-3">
           {!activeInventory ? <p className="text-sm text-muted-foreground">Crie um inventario para iniciar a conferencia.</p> : null}
+          {activeInventory && inventoryStats.pending > 0 ? (
+            <p className="rounded-md border border-border bg-surface p-3 text-sm text-muted-foreground">
+              Para finalizar o inventario anual, todos os bens do escopo precisam ser marcados como confirmado, nao localizado, manutencao, transferido ou baixado.
+            </p>
+          ) : null}
           {scopedAssets.map((asset) => (
             <div key={asset.id} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="min-w-0">
-                <p className="truncate font-medium">{asset.description}</p>
-                <p className="text-sm text-muted-foreground">{asset.code} | {asset.congregation} | {activeInventory?.checks[asset.code]?.status ?? "Pendente"}</p>
+                <p className="break-words font-medium">{asset.description}</p>
+                <p className="text-sm text-muted-foreground">{asset.code} | {asset.congregation} | {asset.internalLocation}</p>
+                <Badge>{activeInventory?.checks[asset.code]?.status ?? "Pendente"}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex">
                 {(["Confirmado", "Nao localizado", "Em manutencao", "Transferido", "Baixado"] as InventoryCheckStatus[]).map((status) => (
-                  <Button key={status} variant="outline" size="sm" onClick={() => check(asset, status)} disabled={!activeInventory}>
+                  <Button key={status} variant="outline" size="sm" onClick={() => check(asset, status)} disabled={!activeInventory || isFinished}>
                     {status}
                   </Button>
                 ))}
@@ -684,6 +720,54 @@ function InventoryPanel({
       {scannerOpen ? <CameraScannerModal assets={assets} onClose={() => setScannerOpen(false)} /> : null}
     </div>
   );
+}
+
+function InventoryProgressBar({ percent }: { percent: number }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="font-medium">Progresso operacional do inventario</span>
+          <span className="text-muted-foreground">{percent}%</span>
+        </div>
+        <div className="mt-3 h-3 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function buildInventoryStats(inventory: PatrimonyInventory | undefined, assets: PatrimonyAsset[]) {
+  const checks = inventory ? Object.values(inventory.checks) : [];
+  if (!inventory || !checks.length) {
+    const total = inventory?.totalItems || assets.length;
+    const checked = inventory?.checkedItems ?? 0;
+    const notFound = inventory?.notFoundItems ?? 0;
+    const pending = inventory?.pendingItems ?? Math.max(total - checked, 0);
+    return {
+      total,
+      checked,
+      pending,
+      notFound,
+      divergences: notFound,
+      percent: inventory?.completionPercentage ?? (total ? Math.round((checked / total) * 100) : 0),
+    };
+  }
+
+  const total = assets.length;
+  const checked = checks.length;
+  const notFound = checks.filter((check) => check.status === "Nao localizado").length;
+  const divergences = checks.filter((check) => check.status !== "Confirmado").length;
+  const pending = Math.max(total - checked, 0);
+  return {
+    total,
+    checked,
+    pending,
+    notFound,
+    divergences,
+    percent: total ? Math.round((checked / total) * 100) : 0,
+  };
 }
 
 function MovementsPanel({ movements }: { movements: Array<{ id: string; assetCode: string; assetDescription: string; type: string; date: string; user: string; observation: string }> }) {

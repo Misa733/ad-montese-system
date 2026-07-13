@@ -299,11 +299,19 @@ export class PatrimonyService {
     return maintenance;
   }
 
-  createInventory(input: Pick<PatrimonyInventory, "area" | "sector" | "congregation">) {
+  createInventory(input: Pick<PatrimonyInventory, "area" | "sector" | "congregation"> & Partial<PatrimonyInventory>) {
     const inventory: PatrimonyInventory = {
       ...input,
       id: `inv_${crypto.randomUUID()}`,
+      name: input.name ?? `Inventario anual ${new Date().getFullYear()} - ${input.congregation}`,
       createdAt: new Date().toISOString(),
+      startedAt: new Date().toISOString().slice(0, 10),
+      status: input.status ?? "Em andamento",
+      totalItems: input.totalItems ?? 0,
+      checkedItems: input.checkedItems ?? 0,
+      pendingItems: input.pendingItems ?? input.totalItems ?? 0,
+      notFoundItems: input.notFoundItems ?? 0,
+      completionPercentage: input.completionPercentage ?? 0,
       checks: {},
     };
     saveLocalList(LOCAL_INVENTORIES_KEY, [inventory, ...this.getInventories()]);
@@ -319,7 +327,7 @@ export class PatrimonyService {
 
   finishInventory(inventoryId: string) {
     const inventories = this.getInventories().map((inventory) =>
-      inventory.id === inventoryId ? { ...inventory, finishedAt: new Date().toISOString() } : inventory,
+      inventory.id === inventoryId ? { ...inventory, finishedAt: new Date().toISOString(), status: "Concluido", completionPercentage: 100 } : inventory,
     );
     saveLocalList(LOCAL_INVENTORIES_KEY, inventories);
   }
