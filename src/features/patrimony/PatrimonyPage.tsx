@@ -319,28 +319,75 @@ function PatrimonyCatalog({
 }) {
   const columns = useMemo<ColumnDef<PatrimonyAsset>[]>(
     () => [
-      { accessorKey: "photo", header: "Foto", cell: () => <div className="flex h-10 w-10 items-center justify-center rounded-md bg-surface"><Boxes className="h-5 w-5 text-primary" /></div> },
-      { accessorKey: "code", header: "Codigo Patrimonial", cell: ({ row }) => <span className="font-semibold text-primary">{row.original.code}</span> },
       {
-        accessorKey: "description",
-        header: "Descricao",
+        id: "asset",
+        header: "Patrimonio",
         cell: ({ row }) => (
-          <button className="max-w-[280px] text-left font-medium text-foreground underline-offset-4 hover:text-primary hover:underline" onClick={() => onSelect(row.original)}>
-            {row.original.description}
-          </button>
+          <div className="flex min-w-[260px] items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface">
+              <Boxes className="h-5 w-5 text-primary" />
+            </div>
+            <button className="min-w-0 text-left underline-offset-4 hover:text-primary hover:underline" onClick={() => onSelect(row.original)}>
+              <span className="block break-words font-semibold text-primary">{row.original.code}</span>
+              <span className="mt-1 block break-words font-medium text-foreground">{row.original.description}</span>
+              <span className="mt-1 block break-words text-xs text-muted-foreground">
+                {row.original.brand || "Sem marca"} {row.original.model ? `| ${row.original.model}` : ""}
+              </span>
+            </button>
+          </div>
         ),
       },
-      { accessorKey: "category", header: "Categoria" },
-      { accessorKey: "congregation", header: "Congregacao" },
-      { accessorKey: "sector", header: "Setor" },
-      { accessorKey: "area", header: "Area" },
-      { accessorKey: "responsible", header: "Responsavel" },
-      { accessorKey: "quantity", header: "Qtd" },
-      { accessorKey: "status", header: "Situacao", cell: ({ row }) => <Badge>{row.original.status}</Badge> },
-      { accessorKey: "conservationState", header: "Estado" },
-      { accessorKey: "currentValue", header: "Valor total", cell: ({ row }) => formatCurrency(getAssetTotal(row.original)) },
-      { accessorKey: "acquisitionDate", header: "Data aquisicao" },
-      { accessorKey: "lastInventoryAt", header: "Ultima conferencia", cell: ({ row }) => row.original.lastInventoryAt || "Pendente" },
+      {
+        id: "location",
+        header: "Localizacao",
+        cell: ({ row }) => (
+          <div className="min-w-[190px] break-words">
+            <p className="font-medium">{row.original.congregation}</p>
+            <p className="text-xs text-muted-foreground">{row.original.sector} | {row.original.area}</p>
+            <p className="text-xs text-muted-foreground">{row.original.internalLocation}</p>
+          </div>
+        ),
+      },
+      {
+        id: "category",
+        header: "Categoria",
+        cell: ({ row }) => (
+          <div className="min-w-[130px] break-words">
+            <p className="font-medium">{row.original.category}</p>
+            <p className="text-xs text-muted-foreground">{row.original.subcategory}</p>
+          </div>
+        ),
+      },
+      {
+        id: "responsible",
+        header: "Responsavel",
+        cell: ({ row }) => <span className="block min-w-[150px] break-words">{row.original.responsible}</span>,
+      },
+      {
+        id: "values",
+        header: "Qtd / Valor",
+        cell: ({ row }) => (
+          <div className="min-w-[105px]">
+            <p className="font-medium">{row.original.quantity} un.</p>
+            <p className="text-xs text-muted-foreground">{formatCurrency(getAssetTotal(row.original))}</p>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <div className="grid min-w-[120px] gap-1">
+            <Badge>{row.original.status}</Badge>
+            <span className="text-xs text-muted-foreground">{row.original.conservationState}</span>
+          </div>
+        ),
+      },
+      {
+        id: "inventory",
+        header: "Conferencia",
+        cell: ({ row }) => <span className="block min-w-[115px] break-words text-sm">{row.original.lastInventoryAt || "Pendente"}</span>,
+      },
       {
         id: "actions",
         header: "Acoes",

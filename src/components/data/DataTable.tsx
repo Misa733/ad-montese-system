@@ -42,7 +42,7 @@ export function DataTable<TData>({ columns, data, searchPlaceholder = "Pesquisar
         </div>
       </div>
       <div className="w-full overflow-x-auto">
-        <table className="min-w-max text-sm md:w-full md:min-w-[760px]">
+        <table className="w-full min-w-[720px] table-auto text-sm">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b border-border bg-muted/50">
