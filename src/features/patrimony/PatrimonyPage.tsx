@@ -19,8 +19,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  generatePatrimonyCode,
+  generateScopedPatrimonyCode,
   getAssetQrUrl,
+  getCongregationCode,
   type InventoryCheckStatus,
   type PatrimonyAsset,
   type PatrimonyInventory,
@@ -442,66 +443,114 @@ function PatrimonyCatalog({
 }
 
 function AssetForm({ assets, onSave }: { assets: PatrimonyAsset[]; onSave: (asset: PatrimonyAsset) => void }) {
-  const nextCode = generatePatrimonyCode(assets);
-  const [form, setForm] = useState<Partial<PatrimonyAsset>>({ code: nextCode, status: "Ativo", sector: "Setor 02", area: "Patrimonio" });
+  const [form, setForm] = useState<Partial<PatrimonyAsset>>({
+    status: "Ativo",
+    sector: "Setor 02",
+    area: "Culto e apoio",
+    category: "Mobiliario",
+    quantity: 1,
+    acquisitionMethod: "Compra",
+    conservationState: "Bom",
+  });
+  const generatedCode = useMemo(() => generateScopedPatrimonyCode(assets, form), [assets, form]);
+  const quantity = Math.max(Number(form.quantity ?? 1), 1);
+  const unitValue = Number(form.unitValue ?? form.value ?? 0);
+  const totalPreview = Number(form.totalValue ?? unitValue * quantity);
+  const congregationCode = getCongregationCode(form.congregationCode || form.congregation || "NI");
+  const qrPreview = `${window.location.origin}/app/patrimonio?bem=${encodeURIComponent(form.code?.trim() || generatedCode)}`;
   function setField<K extends keyof PatrimonyAsset>(key: K, value: PatrimonyAsset[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
+
+  function save() {
+    onSave({
+      ...form,
+      code: form.code?.trim() || generatedCode,
+      congregationCode,
+      totalValue: totalPreview,
+      value: Number(form.value ?? totalPreview),
+      currentValue: Number(form.currentValue ?? totalPreview),
+      qrCode: form.code?.trim() || generatedCode,
+    } as PatrimonyAsset);
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Cadastro de Patrimonio</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Descricao" value={form.description ?? ""} onChange={(value) => setField("description", value)} />
-          <Field label="Categoria" value={form.category ?? ""} onChange={(value) => setField("category", value)} />
-          <Field label="Subcategoria" value={form.subcategory ?? ""} onChange={(value) => setField("subcategory", value)} />
-          <Field label="Patrimonio" value={form.code ?? nextCode} onChange={(value) => setField("code", value)} />
-          <Field label="Marca" value={form.brand ?? ""} onChange={(value) => setField("brand", value)} />
-          <Field label="Modelo" value={form.model ?? ""} onChange={(value) => setField("model", value)} />
-          <Field label="Numero de Serie" value={form.serialNumber ?? ""} onChange={(value) => setField("serialNumber", value)} />
-          <Field label="Codigo interno" value={form.internalCode ?? ""} onChange={(value) => setField("internalCode", value)} />
-          <Field label="Valor" type="number" value={String(form.value ?? "")} onChange={(value) => setField("value", Number(value))} />
-          <Field label="Valor atual" type="number" value={String(form.currentValue ?? "")} onChange={(value) => setField("currentValue", Number(value))} />
-          <Field label="Fornecedor" value={form.supplier ?? ""} onChange={(value) => setField("supplier", value)} />
-          <Field label="Nota Fiscal" value={form.invoice ?? ""} onChange={(value) => setField("invoice", value)} />
-          <Field label="Data aquisicao" type="date" value={form.acquisitionDate ?? ""} onChange={(value) => setField("acquisitionDate", value)} />
-          <Field label="Garantia" value={form.warranty ?? ""} onChange={(value) => setField("warranty", value)} />
-          <Field label="Congregacao" value={form.congregation ?? ""} onChange={(value) => setField("congregation", value)} />
-          <Field label="Setor" value={form.sector ?? ""} onChange={(value) => setField("sector", value)} />
-          <Field label="Area" value={form.area ?? ""} onChange={(value) => setField("area", value)} />
-          <Field label="Localizacao" value={form.location ?? ""} onChange={(value) => setField("location", value)} />
-          <Field label="Responsavel" value={form.responsible ?? ""} onChange={(value) => setField("responsible", value)} />
+    <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Cadastro de Patrimonio</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <Field label="Descricao" value={form.description ?? ""} onChange={(value) => setField("description", value)} />
+            <Field label="Categoria" value={form.category ?? ""} onChange={(value) => setField("category", value)} />
+            <Field label="Subcategoria" value={form.subcategory ?? ""} onChange={(value) => setField("subcategory", value)} />
+            <Field label="Congregacao" value={form.congregation ?? ""} onChange={(value) => setField("congregation", value)} />
+            <Field label="Setor" value={form.sector ?? ""} onChange={(value) => setField("sector", value)} />
+            <Field label="Area" value={form.area ?? ""} onChange={(value) => setField("area", value)} />
+            <Field label="Localizacao" value={form.location ?? ""} onChange={(value) => setField("location", value)} />
+            <Field label="Local interno" value={form.internalLocation ?? ""} onChange={(value) => setField("internalLocation", value)} />
+            <Field label="Responsavel" value={form.responsible ?? ""} onChange={(value) => setField("responsible", value)} />
+            <Field label="Quantidade" type="number" value={String(form.quantity ?? 1)} onChange={(value) => setField("quantity", Number(value))} />
+            <Field label="Valor unitario" type="number" value={String(form.unitValue ?? "")} onChange={(value) => setField("unitValue", Number(value))} />
+            <Field label="Valor total" type="number" value={String(form.totalValue ?? (totalPreview || ""))} onChange={(value) => setField("totalValue", Number(value))} />
+            <Field label="Marca" value={form.brand ?? ""} onChange={(value) => setField("brand", value)} />
+            <Field label="Modelo" value={form.model ?? ""} onChange={(value) => setField("model", value)} />
+            <Field label="Numero de Serie" value={form.serialNumber ?? ""} onChange={(value) => setField("serialNumber", value)} />
+            <Field label="Codigo interno" value={form.internalCode ?? ""} onChange={(value) => setField("internalCode", value)} />
+            <Field label="Fornecedor" value={form.supplier ?? ""} onChange={(value) => setField("supplier", value)} />
+            <Field label="Nota Fiscal" value={form.invoice ?? ""} onChange={(value) => setField("invoice", value)} />
+            <Field label="Data aquisicao" type="date" value={form.acquisitionDate ?? ""} onChange={(value) => setField("acquisitionDate", value)} />
+            <Field label="Garantia" value={form.warranty ?? ""} onChange={(value) => setField("warranty", value)} />
+            <Field label="Forma aquisicao" value={form.acquisitionMethod ?? ""} onChange={(value) => setField("acquisitionMethod", value)} />
+            <Field label="Estado conservacao" value={form.conservationState ?? ""} onChange={(value) => setField("conservationState", value)} />
+            <label className="text-xs font-medium text-muted-foreground">
+              Situacao
+              <Select className="mt-1 w-full" value={form.status ?? "Ativo"} onChange={(event) => setField("status", event.target.value as PatrimonyAsset["status"])}>
+                <option>Ativo</option>
+                <option>Em manutencao</option>
+                <option>Baixado</option>
+                <option>Transferido</option>
+                <option>Nao localizado</option>
+              </Select>
+            </label>
+            <Field label="Documentos / Anexos" value={form.documentation ?? ""} onChange={(value) => setField("documentation", value)} />
+            <Field label="Foto / URL" value={form.photo ?? ""} onChange={(value) => setField("photo", value)} />
+          </div>
           <label className="text-xs font-medium text-muted-foreground">
-            Situacao
-            <Select className="mt-1 w-full" value={form.status ?? "Ativo"} onChange={(event) => setField("status", event.target.value as PatrimonyAsset["status"])}>
-              <option>Ativo</option>
-              <option>Em manutencao</option>
-              <option>Baixado</option>
-              <option>Transferido</option>
-              <option>Nao localizado</option>
-            </Select>
+            Observacoes
+            <textarea
+              className="mt-1 min-h-24 w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={form.observations ?? ""}
+              onChange={(event) => setField("observations", event.target.value)}
+            />
           </label>
-          <Field label="Documentos / Anexos" value={form.documentation ?? ""} onChange={(value) => setField("documentation", value)} />
-          <Field label="Fotos" value={form.photo ?? ""} onChange={(value) => setField("photo", value)} />
-        </div>
-        <label className="text-xs font-medium text-muted-foreground">
-          Observacoes
-          <textarea
-            className="mt-1 min-h-24 w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={form.observations ?? ""}
-            onChange={(event) => setField("observations", event.target.value)}
-          />
-        </label>
-        <div className="flex justify-end">
-          <Button onClick={() => onSave(form as PatrimonyAsset)}>
-            <Plus className="h-4 w-4" />
-            Salvar patrimonio
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex justify-end">
+            <Button onClick={save}>
+              <Plus className="h-4 w-4" />
+              Salvar patrimonio
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle>Tombamento gerado</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <Info label="Codigo patrimonial" value={form.code?.trim() || generatedCode} />
+          <Info label="Sigla congregacao" value={congregationCode} />
+          <Info label="Valor total" value={formatCurrency(totalPreview)} />
+          <div className="rounded-md border border-border bg-white p-4">
+            <img className="mx-auto h-36 w-36" src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrPreview)}`} alt="QR Code do patrimonio" />
+          </div>
+          <Field label="Codigo manual opcional" value={form.code ?? ""} onChange={(value) => setField("code", value)} />
+          <p className="text-sm text-muted-foreground">
+            Ao salvar, o bem aparece no catalogo, na ficha completa, nos relatorios e fica pronto para etiqueta com QR Code.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -580,13 +629,26 @@ function InventoryPanel({
   const [inventoryResponsible, setInventoryResponsible] = useState("Comissao patrimonial");
   const [activeId, setActiveId] = useState(inventories[0]?.id ?? "");
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("Pendentes");
+  const [visibleLimit, setVisibleLimit] = useState(30);
   const activeInventory = inventories.find((inventory) => inventory.id === activeId);
-  const activeScope = activeInventory
+  const originalScope = activeInventory
     ? { area: activeInventory.area || "Todos", sector: activeInventory.sector || "Todos", congregation: activeInventory.congregation || "Todos" }
-    : scope;
-  const scopedAssets = filterAssets(assets, { category: "Todos", status: "Todos", congregation: activeScope.congregation }).filter(
-    (asset) => (activeScope.area === "Todos" || asset.area === activeScope.area) && (activeScope.sector === "Todos" || asset.sector === activeScope.sector),
+    : undefined;
+  const scopedAssets = filterAssets(assets, { category: "Todos", status: "Todos", congregation: scope.congregation }).filter(
+    (asset) => (scope.area === "Todos" || asset.area === scope.area) && (scope.sector === "Todos" || asset.sector === scope.sector),
   );
+  const filteredInventoryAssets = scopedAssets.filter((asset) => {
+    const checkStatus = activeInventory?.checks[asset.code]?.status ?? "Pendente";
+    const query = normalizeLocal(inventorySearch);
+    const matchesSearch =
+      !query ||
+      [asset.description, asset.code, asset.congregation, asset.responsible, asset.internalLocation, asset.category].some((value) => normalizeLocal(value).includes(query));
+    const matchesStatus = statusFilter === "Todos" || (statusFilter === "Pendentes" ? checkStatus === "Pendente" : checkStatus === statusFilter);
+    return matchesSearch && matchesStatus;
+  });
+  const visibleInventoryAssets = filteredInventoryAssets.slice(0, visibleLimit);
   const inventoryStats = buildInventoryStats(activeInventory, scopedAssets);
   const isFinished = Boolean(activeInventory?.finishedAt) || activeInventory?.status === "Concluido";
 
@@ -606,6 +668,8 @@ function InventoryPanel({
       completionPercentage: 0,
     });
     setActiveId(inventory.id);
+    setStatusFilter("Pendentes");
+    setVisibleLimit(30);
     onRefresh();
     toast.success("Inventario iniciado");
   }
@@ -625,92 +689,153 @@ function InventoryPanel({
 
   return (
     <div className="grid gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Planejamento do inventario anual</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-3 xl:grid-cols-6">
-          <Field label="Ano" value={inventoryYear} onChange={setInventoryYear} />
-          <Field label="Responsavel" value={inventoryResponsible} onChange={setInventoryResponsible} />
-          <FilterSelect label="Area" value={scope.area} options={unique(assets.map((asset) => asset.area))} onChange={(value) => setScope({ ...scope, area: value })} />
-          <FilterSelect label="Setor" value={scope.sector} options={unique(assets.map((asset) => asset.sector))} onChange={(value) => setScope({ ...scope, sector: value })} />
-          <FilterSelect label="Congregacao" value={scope.congregation} options={unique(assets.map((asset) => asset.congregation))} onChange={(value) => setScope({ ...scope, congregation: value })} />
-          <div className="flex items-end gap-2 xl:col-span-1">
-            <Button className="w-full" onClick={createInventory}>
-              <ClipboardCheck className="h-4 w-4" />
-              Abrir inventario
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <Metric label="Concluido" value={`${inventoryStats.percent}%`} />
-        <Metric label="Itens no escopo" value={inventoryStats.total} />
-        <Metric label="Conferidos" value={inventoryStats.checked} />
-        <Metric label="Pendentes" value={inventoryStats.pending} />
-        <Metric label="Nao localizados" value={inventoryStats.notFound} />
-        <Metric label="Divergencias" value={inventoryStats.divergences} />
-      </div>
-      <InventoryProgressBar percent={inventoryStats.percent} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Inventarios cadastrados</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {inventories.map((inventory) => (
-            <button key={inventory.id} className={cn("rounded-md border p-3 text-left", activeId === inventory.id ? "border-primary bg-surface" : "border-border")} onClick={() => setActiveId(inventory.id)}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-medium">{inventory.name ?? `Inventario ${inventory.congregation}`}</span>
-                <Badge>{inventory.status ?? (inventory.finishedAt ? "Concluido" : "Em andamento")}</Badge>
+      <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
+        <div className="grid h-fit gap-4 xl:sticky xl:top-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Inventario anual</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 p-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <Field label="Ano" value={inventoryYear} onChange={setInventoryYear} />
+                <Field label="Responsavel" value={inventoryResponsible} onChange={setInventoryResponsible} />
+                <FilterSelect label="Area" value={scope.area} options={unique(assets.map((asset) => asset.area))} onChange={(value) => setScope({ ...scope, area: value })} />
+                <FilterSelect label="Setor" value={scope.sector} options={unique(assets.map((asset) => asset.sector))} onChange={(value) => setScope({ ...scope, sector: value })} />
+                <FilterSelect label="Congregacao" value={scope.congregation} options={unique(assets.map((asset) => asset.congregation))} onChange={(value) => setScope({ ...scope, congregation: value })} />
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">{inventory.responsible ?? "Responsavel nao informado"} | {inventory.completionPercentage ?? 0}% concluido</p>
-            </button>
-          ))}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <div>
-            <CardTitle>Conferencia do inventario</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {activeInventory ? `${activeInventory.name ?? "Inventario"} | ${activeScope.sector} | ${activeScope.congregation}` : "Selecione ou abra um inventario para iniciar."}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setScannerOpen(true)} disabled={!activeInventory || isFinished}>
-              <Camera className="h-4 w-4" />
-              Escanear
-            </Button>
-            <Button variant="outline" onClick={() => activeInventory && (service.finishInventory(activeInventory.id), onRefresh())} disabled={!activeInventory || inventoryStats.pending > 0 || isFinished}>
-              Finalizar
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {!activeInventory ? <p className="text-sm text-muted-foreground">Crie um inventario para iniciar a conferencia.</p> : null}
-          {activeInventory && inventoryStats.pending > 0 ? (
-            <p className="rounded-md border border-border bg-surface p-3 text-sm text-muted-foreground">
-              Para finalizar o inventario anual, todos os bens do escopo precisam ser marcados como confirmado, nao localizado, manutencao, transferido ou baixado.
-            </p>
-          ) : null}
-          {scopedAssets.map((asset) => (
-            <div key={asset.id} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div className="min-w-0">
-                <p className="break-words font-medium">{asset.description}</p>
-                <p className="text-sm text-muted-foreground">{asset.code} | {asset.congregation} | {asset.internalLocation}</p>
-                <Badge>{activeInventory?.checks[asset.code]?.status ?? "Pendente"}</Badge>
+              <Button className="w-full" onClick={createInventory}>
+                <ClipboardCheck className="h-4 w-4" />
+                Abrir inventario
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Os filtros acima controlam a conferencia exibida agora. Abra um inventario para gravar as marcacoes.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Progresso</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 p-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Metric label="Concluido" value={`${inventoryStats.percent}%`} />
+                <Metric label="Itens" value={inventoryStats.total} />
+                <Metric label="Conferidos" value={inventoryStats.checked} />
+                <Metric label="Pendentes" value={inventoryStats.pending} />
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex">
-                {(["Confirmado", "Nao localizado", "Em manutencao", "Transferido", "Baixado"] as InventoryCheckStatus[]).map((status) => (
-                  <Button key={status} variant="outline" size="sm" onClick={() => check(asset, status)} disabled={!activeInventory || isFinished}>
-                    {status}
-                  </Button>
-                ))}
-              </div>
+              <InventoryProgressBar percent={inventoryStats.percent} compact />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Inventarios cadastrados</CardTitle>
+            </CardHeader>
+            <CardContent className="grid max-h-72 gap-2 overflow-y-auto p-3">
+              {inventories.map((inventory) => (
+                <button
+                  key={inventory.id}
+                  className={cn("rounded-md border p-3 text-left", activeId === inventory.id ? "border-primary bg-surface" : "border-border")}
+                  onClick={() => {
+                    setActiveId(inventory.id);
+                    setScope({ area: inventory.area || "Todos", sector: inventory.sector || "Todos", congregation: inventory.congregation || "Todos" });
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 break-words text-sm font-medium">{inventory.name ?? `Inventario ${inventory.congregation}`}</span>
+                    <Badge>{inventory.status ?? (inventory.finishedAt ? "Concluido" : "Em andamento")}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{inventory.responsible ?? "Responsavel nao informado"} | {inventory.completionPercentage ?? 0}%</p>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+        <Card>
+          <CardHeader className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+            <div>
+              <CardTitle>Conferencia do inventario</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {activeInventory ? `${activeInventory.name ?? "Inventario"} | exibindo ${scope.sector} | ${scope.congregation}` : "Selecione ou abra um inventario para iniciar."}
+              </p>
+              {originalScope ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Escopo original: {originalScope.area} | {originalScope.sector} | {originalScope.congregation}
+                </p>
+              ) : null}
             </div>
-          ))}
-        </CardContent>
-      </Card>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setScannerOpen(true)} disabled={!activeInventory || isFinished}>
+                <Camera className="h-4 w-4" />
+                Escanear
+              </Button>
+              <Button variant="outline" onClick={() => activeInventory && (service.finishInventory(activeInventory.id), onRefresh())} disabled={!activeInventory || inventoryStats.pending > 0 || isFinished}>
+                Finalizar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+              <label className="min-w-0 text-xs font-medium text-muted-foreground">
+                Buscar no inventario
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input className="pl-9" value={inventorySearch} onChange={(event) => setInventorySearch(event.target.value)} placeholder="Codigo, nome, local ou responsavel" />
+                </div>
+              </label>
+              <label className="min-w-0 text-xs font-medium text-muted-foreground">
+                Status da conferencia
+                <Select className="mt-1 w-full" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <option>Todos</option>
+                  <option>Pendentes</option>
+                  <option>Confirmado</option>
+                  <option>Nao localizado</option>
+                  <option>Em manutencao</option>
+                  <option>Transferido</option>
+                  <option>Baixado</option>
+                </Select>
+              </label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Metric label="Filtrados" value={filteredInventoryAssets.length} />
+              <Metric label="Nao localizados" value={inventoryStats.notFound} />
+              <Metric label="Divergencias" value={inventoryStats.divergences} />
+            </div>
+            {!activeInventory ? <p className="text-sm text-muted-foreground">Crie um inventario para iniciar a conferencia.</p> : null}
+            {activeInventory && inventoryStats.pending > 0 ? (
+              <p className="rounded-md border border-border bg-surface p-3 text-sm text-muted-foreground">
+                Para finalizar o inventario anual, todos os bens do escopo filtrado precisam ser marcados como confirmado, nao localizado, manutencao, transferido ou baixado.
+              </p>
+            ) : null}
+            <div className="grid gap-3">
+              {visibleInventoryAssets.map((asset) => (
+                <div key={asset.id} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1fr_auto] lg:items-center">
+                  <div className="min-w-0">
+                    <p className="break-words font-medium">{asset.description}</p>
+                    <p className="break-words text-sm text-muted-foreground">{asset.code} | {asset.congregation} | {asset.internalLocation || asset.location}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Badge>{activeInventory?.checks[asset.code]?.status ?? "Pendente"}</Badge>
+                      <Badge>{asset.category}</Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                    {(["Confirmado", "Nao localizado", "Em manutencao", "Transferido", "Baixado"] as InventoryCheckStatus[]).map((status) => (
+                      <Button key={status} variant="outline" size="sm" onClick={() => check(asset, status)} disabled={!activeInventory || isFinished}>
+                        {status}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {filteredInventoryAssets.length > visibleInventoryAssets.length ? (
+              <Button variant="outline" onClick={() => setVisibleLimit((current) => current + 30)}>
+                Mostrar mais {Math.min(30, filteredInventoryAssets.length - visibleInventoryAssets.length)} itens
+              </Button>
+            ) : null}
+            {activeInventory && !filteredInventoryAssets.length ? <EmptyState title="Nenhum item nesse filtro" description="Ajuste a busca, o status ou os filtros de area, setor e congregacao." /> : null}
+          </CardContent>
+        </Card>
+      </div>
       <Card>
         <CardContent className="flex items-center gap-3 p-4 text-sm text-muted-foreground">
           <Camera className="h-5 w-5 text-primary" />
@@ -722,10 +847,10 @@ function InventoryPanel({
   );
 }
 
-function InventoryProgressBar({ percent }: { percent: number }) {
+function InventoryProgressBar({ percent, compact = false }: { percent: number; compact?: boolean }) {
   return (
-    <Card>
-      <CardContent className="p-4">
+    <Card className={compact ? "border-0 shadow-none" : undefined}>
+      <CardContent className={compact ? "p-0" : "p-4"}>
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="font-medium">Progresso operacional do inventario</span>
           <span className="text-muted-foreground">{percent}%</span>
@@ -739,7 +864,8 @@ function InventoryProgressBar({ percent }: { percent: number }) {
 }
 
 function buildInventoryStats(inventory: PatrimonyInventory | undefined, assets: PatrimonyAsset[]) {
-  const checks = inventory ? Object.values(inventory.checks) : [];
+  const assetCodes = new Set(assets.map((asset) => asset.code));
+  const checks = inventory ? Object.entries(inventory.checks).filter(([code]) => assetCodes.has(code)).map(([, check]) => check) : [];
   if (!inventory || !checks.length) {
     const total = inventory?.totalItems || assets.length;
     const checked = inventory?.checkedItems ?? 0;
@@ -768,6 +894,14 @@ function buildInventoryStats(inventory: PatrimonyInventory | undefined, assets: 
     divergences,
     percent: total ? Math.round((checked / total) * 100) : 0,
   };
+}
+
+function normalizeLocal(value: string | number | undefined) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function MovementsPanel({ movements }: { movements: Array<{ id: string; assetCode: string; assetDescription: string; type: string; date: string; user: string; observation: string }> }) {
@@ -928,9 +1062,9 @@ function PatrimonySettings({ assets }: { assets: PatrimonyAsset[] }) {
           <CardTitle>Tombamento automatico</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <Info label="Proximo codigo" value={generatePatrimonyCode(assets)} />
-          <Info label="Modelo simples" value="PAT-000001" />
-          <Info label="Modelo por congregacao" value="ADM-02-PA-000001" />
+          <Info label="Proximo codigo" value={generateScopedPatrimonyCode(assets, { sector: "Setor 02", congregation: "Parque Araturi", category: "Mobiliario" })} />
+          <Info label="Modelo por setor" value="ADM-S02-PA-MOB-0001" />
+          <Info label="QR Code" value="Abre a ficha completa do patrimonio" />
         </CardContent>
       </Card>
     </div>

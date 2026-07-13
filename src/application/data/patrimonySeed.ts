@@ -125,7 +125,7 @@ function buildAssets() {
 }
 
 function seedAsset(congregation: CongregationSeed, template: AssetTemplate, sequence: number, offset: number, forceImovel = false): PatrimonyAsset {
-  const code = `ADM-S02-${congregation.code}-${template.abbreviation}-${String(sequence).padStart(4, "0")}`;
+  const code = `ADM-${seedSectorCode(congregation.sector)}-${congregation.code}-${template.abbreviation}-${String(sequence).padStart(4, "0")}`;
   const acquisitionYear = 2020 + ((sequence + offset) % 7);
   const month = String(((sequence + offset) % 12) + 1).padStart(2, "0");
   const day = String(((sequence * 3 + offset) % 26) + 1).padStart(2, "0");
@@ -183,6 +183,12 @@ function seedAsset(congregation: CongregationSeed, template: AssetTemplate, sequ
       ValorTotal: total,
     },
   };
+}
+
+function seedSectorCode(sector: string) {
+  const number = sector.match(/\d+/)?.[0];
+  if (number) return `S${number.padStart(2, "0")}`;
+  return sector.toLowerCase().includes("estadual") ? "EST" : "S00";
 }
 
 function buildMovements(): PatrimonyMovement[] {

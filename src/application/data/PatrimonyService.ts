@@ -235,7 +235,14 @@ export class PatrimonyService {
 
   createAsset(input: Partial<PatrimonyAsset>) {
     const current = this.getAssets();
-    const code = input.code?.trim() || generatePatrimonyCode(current);
+    const generatedCode = generateScopedPatrimonyCode(current, input);
+    const inputCode = input.code?.trim();
+    const code = inputCode && !inputCode.startsWith("PAT-") ? inputCode : generatedCode;
+    const quantity = Math.max(Number(input.quantity ?? 1), 1);
+    const unitValue = Number(input.unitValue ?? input.value ?? 0);
+    const totalValue = Number(input.totalValue ?? unitValue * quantity);
+    const congregation = input.congregation?.trim() || "Nao informada";
+    const congregationCode = input.congregationCode?.trim() || getCongregationCode(congregation);
     const asset: PatrimonyAsset = {
       id: `pat_${crypto.randomUUID()}`,
       photo: input.photo ?? "",
@@ -247,19 +254,19 @@ export class PatrimonyService {
       brand: input.brand?.trim() || "",
       model: input.model?.trim() || "",
       serialNumber: input.serialNumber?.trim() || "",
-      quantity: Number(input.quantity ?? 1),
-      unitValue: Number(input.unitValue ?? input.value ?? 0),
-      totalValue: Number(input.totalValue ?? input.currentValue ?? input.value ?? 0),
+      quantity,
+      unitValue,
+      totalValue,
       internalCode: input.internalCode?.trim() || "",
-      value: Number(input.value ?? 0),
-      currentValue: Number(input.currentValue ?? input.value ?? 0),
+      value: Number(input.value ?? totalValue),
+      currentValue: Number(input.currentValue ?? totalValue),
       acquisitionMethod: input.acquisitionMethod?.trim() || "Compra",
       supplier: input.supplier?.trim() || "",
       invoice: input.invoice?.trim() || "",
       acquisitionDate: input.acquisitionDate || new Date().toISOString().slice(0, 10),
       warranty: input.warranty?.trim() || "",
-      congregation: input.congregation?.trim() || "Nao informada",
-      congregationCode: input.congregationCode?.trim() || input.congregation?.trim() || "NI",
+      congregation,
+      congregationCode,
       sector: input.sector?.trim() || "Setor 02",
       area: input.area?.trim() || "Area patrimonial",
       location: input.location?.trim() || "",
@@ -274,8 +281,18 @@ export class PatrimonyService {
       nextInventoryAt: input.nextInventoryAt ?? "",
       observations: input.observations?.trim() || "",
       sourceSheet: "Cadastro local",
-      qrCode: input.qrCode ?? code,
-      raw: input.raw ?? {},
+      qrCode: code,
+      raw: input.raw ?? {
+        Codigo: code,
+        Descricao: input.description?.trim() || "Bem sem descricao",
+        Congregacao: congregation,
+        SiglaCongregacao: congregationCode,
+        Setor: input.sector?.trim() || "Setor 02",
+        Categoria: input.category?.trim() || "Geral",
+        Quantidade: quantity,
+        ValorUnitario: unitValue,
+        ValorTotal: totalValue,
+      },
     };
     saveLocalList(LOCAL_ASSETS_KEY, [asset, ...readLocalList<PatrimonyAsset>(LOCAL_ASSETS_KEY)]);
     saveLocalList(LOCAL_MOVEMENTS_KEY, [
@@ -320,7 +337,7 @@ export class PatrimonyService {
 
   updateInventoryCheck(inventoryId: string, assetCode: string, check: PatrimonyInventoryCheck) {
     const inventories = this.getInventories().map((inventory) =>
-      inventory.id === inventoryId ? { ...inventory, checks: { ...inventory.checks, [assetCode]: check } } : inventory,
+      inventory.id === inventoryId ? recalculateInventory({ ...inventory, checks: { ...inventory.checks, [assetCode]: check } }) : inventory,
     );
     saveLocalList(LOCAL_INVENTORIES_KEY, inventories);
   }
@@ -473,6 +490,69 @@ export function generatePatrimonyCode(assets: PatrimonyAsset[], prefix = "PAT") 
   return `${prefix}-${String(max + 1).padStart(6, "0")}`;
 }
 
+export function generateScopedPatrimonyCode(assets: PatrimonyAsset[], input: Partial<PatrimonyAsset>) {
+  const sectorCode = getSectorCode(input.sector || "Setor 02");
+  const congregationCode = getCongregationCode(input.congregationCode || input.congregation || "NI");
+  const categoryCode = getCategoryCode(input.category || "Geral");
+  const prefix = `ADM-${sectorCode}-${congregationCode}-${categoryCode}`;
+  const max = assets.reduce((highest, asset) => {
+    if (!asset.code.startsWith(prefix)) return highest;
+    const match = asset.code.match(/(\d{1,})$/);
+    return Math.max(highest, match ? Number(match[1]) : 0);
+  }, 0);
+  return `${prefix}-${String(max + 1).padStart(4, "0")}`;
+}
+
+export function getSectorCode(value: string) {
+  const normalized = normalizeText(value);
+  const number = normalized.match(/\d+/)?.[0];
+  if (number) return `S${number.padStart(2, "0")}`;
+  if (normalized.includes("estadual")) return "EST";
+  if (normalized.includes("sede")) return "SED";
+  return "S00";
+}
+
+export function getCategoryCode(value: string) {
+  const normalized = normalizeText(value);
+  if (normalized.includes("mobil") || normalized.includes("move")) return "MOB";
+  if (normalized.includes("som") || normalized.includes("audio") || normalized.includes("multim")) return "SOM";
+  if (normalized.includes("instrument")) return "INS";
+  if (normalized.includes("climat") || normalized.includes("ar-condicionado") || normalized.includes("ventil")) return "CLI";
+  if (normalized.includes("copa") || normalized.includes("cozinha")) return "COP";
+  if (normalized.includes("eletr") || normalized.includes("estrutura")) return "ELE";
+  if (normalized.includes("imovel") || normalized.includes("templo") || normalized.includes("terreno")) return "IMO";
+  if (normalized.includes("informat") || normalized.includes("comput") || normalized.includes("notebook")) return "INF";
+  return "GER";
+}
+
+export function getCongregationCode(value: string) {
+  const normalized = normalizeText(value).toUpperCase();
+  const clean = normalized.replace(/[^A-Z0-9 ]/g, " ").trim();
+  if (!clean) return "NI";
+  const known: Record<string, string> = {
+    "MARECHAL RONDON": "MR",
+    "METROPOLE 1": "M1",
+    "METROPOLE 2": "M2",
+    "METROPOLE 3": "M3",
+    "MONTE HOREBE": "MH",
+    "PARQUE ARATURI": "PA",
+    "PLANALTO CAUCAIA": "PC",
+    TUCUNDUBA: "TU",
+    MISSIONARIA: "MI",
+    ICARAI: "IC",
+    "COMUNIDADE 15": "C15",
+    ARIANOPOLIS: "AR",
+    "SAO MIGUEL": "SMG",
+    "AREA VERDE": "AVD",
+    "SANTA CECILIA": "SCE",
+    "SEDE ESTADUAL": "EST",
+  };
+  if (known[clean]) return known[clean];
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 4);
+  return words.map((word) => word[0]).join("").slice(0, 4);
+}
+
 export function getAssetQrUrl(asset: PatrimonyAsset) {
   const path = `/app/patrimonio?bem=${encodeURIComponent(asset.code)}`;
   return `${window.location.origin}${path}`;
@@ -563,6 +643,23 @@ function groupInventoryStatus(inventories: PatrimonyInventory[]) {
     grouped.set(status, (grouped.get(status) ?? 0) + 1);
   });
   return Array.from(grouped.entries()).map(([name, value]) => ({ name, value }));
+}
+
+function recalculateInventory(inventory: PatrimonyInventory) {
+  const checks = Object.values(inventory.checks);
+  const totalItems = Math.max(inventory.totalItems ?? checks.length, checks.length);
+  const checkedItems = checks.length;
+  const notFoundItems = checks.filter((check) => check.status === "Nao localizado").length;
+  const pendingItems = Math.max(totalItems - checkedItems, 0);
+  const completionPercentage = totalItems ? Math.round((checkedItems / totalItems) * 100) : 0;
+  return {
+    ...inventory,
+    totalItems,
+    checkedItems,
+    pendingItems,
+    notFoundItems,
+    completionPercentage,
+  };
 }
 
 function readLocalList<T>(key: string): T[] {
