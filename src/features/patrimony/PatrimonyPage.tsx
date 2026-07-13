@@ -160,6 +160,8 @@ export function PatrimonyPage() {
         }
       />
 
+      <PatrimonyProcessFlow activeTab={tab} onNavigate={setTab} />
+
       <Card className="mb-6 min-w-0 overflow-hidden">
         <CardContent className="flex gap-2 overflow-x-auto p-3">
           {tabs.map(({ id, label, icon: Icon }) => (
@@ -201,6 +203,42 @@ export function PatrimonyPage() {
       {tab === "settings" ? <PatrimonySettings assets={assets} /> : null}
       {scannerOpen ? <CameraScannerModal assets={assets} onClose={() => setScannerOpen(false)} /> : null}
     </div>
+  );
+}
+
+function PatrimonyProcessFlow({ activeTab, onNavigate }: { activeTab: PatrimonyTab; onNavigate: (tab: PatrimonyTab) => void }) {
+  const steps: Array<{ number: string; title: string; description: string; tab: PatrimonyTab }> = [
+    { number: "1", title: "Diagnosticar", description: "Veja totais, riscos, valores e setores no dashboard.", tab: "dashboard" },
+    { number: "2", title: "Localizar", description: "Use busca e filtros para achar o bem por codigo, setor ou responsavel.", tab: "catalog" },
+    { number: "3", title: "Abrir ficha", description: "Clique no item para ver QR Code, tombamento e detalhes completos.", tab: "profile" },
+    { number: "4", title: "Etiquetar", description: "Imprima a etiqueta com QR Code para colar no patrimonio.", tab: "profile" },
+    { number: "5", title: "Conferir", description: "Escaneie pelo celular ou marque o item no inventario.", tab: "inventory" },
+    { number: "6", title: "Tratar", description: "Registre manutencoes, baixas, transferencias e historico.", tab: "maintenance" },
+    { number: "7", title: "Prestar contas", description: "Gere relatorios para administradores e ministerio.", tab: "reports" },
+  ];
+
+  return (
+    <Card className="mb-6 min-w-0 overflow-hidden">
+      <CardHeader>
+        <CardTitle>Fluxo pratico da gestao patrimonial</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+        {steps.map((step) => (
+          <button
+            key={step.number}
+            className={cn(
+              "min-w-0 rounded-md border p-3 text-left transition-colors",
+              activeTab === step.tab ? "border-primary bg-surface text-foreground" : "border-border bg-card hover:bg-muted",
+            )}
+            onClick={() => onNavigate(step.tab)}
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">{step.number}</span>
+            <span className="mt-3 block font-semibold">{step.title}</span>
+            <span className="mt-1 block text-sm leading-5 text-muted-foreground">{step.description}</span>
+          </button>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -282,8 +320,16 @@ function PatrimonyCatalog({
   const columns = useMemo<ColumnDef<PatrimonyAsset>[]>(
     () => [
       { accessorKey: "photo", header: "Foto", cell: () => <div className="flex h-10 w-10 items-center justify-center rounded-md bg-surface"><Boxes className="h-5 w-5 text-primary" /></div> },
-      { accessorKey: "code", header: "Codigo Patrimonial" },
-      { accessorKey: "description", header: "Descricao" },
+      { accessorKey: "code", header: "Codigo Patrimonial", cell: ({ row }) => <span className="font-semibold text-primary">{row.original.code}</span> },
+      {
+        accessorKey: "description",
+        header: "Descricao",
+        cell: ({ row }) => (
+          <button className="max-w-[280px] text-left font-medium text-foreground underline-offset-4 hover:text-primary hover:underline" onClick={() => onSelect(row.original)}>
+            {row.original.description}
+          </button>
+        ),
+      },
       { accessorKey: "category", header: "Categoria" },
       { accessorKey: "congregation", header: "Congregacao" },
       { accessorKey: "sector", header: "Setor" },
@@ -299,8 +345,9 @@ function PatrimonyCatalog({
         id: "actions",
         header: "Acoes",
         cell: ({ row }) => (
-          <Button variant="ghost" size="icon" onClick={() => onSelect(row.original)} aria-label="Ver ficha">
+          <Button variant="ghost" size="sm" onClick={() => onSelect(row.original)} aria-label="Ver ficha">
             <Eye className="h-4 w-4" />
+            <span className="hidden xl:inline">Abrir ficha</span>
           </Button>
         ),
       },
@@ -310,6 +357,14 @@ function PatrimonyCatalog({
 
   return (
     <div className="grid gap-4">
+      <Card className="border-primary/20 bg-surface">
+        <CardContent className="flex flex-col gap-2 p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Clique em qualquer linha, no codigo ou na descricao para abrir a ficha completa com QR Code, etiqueta, documentos e historico.
+          </span>
+          <Badge>{assets.length} itens encontrados</Badge>
+        </CardContent>
+      </Card>
       <Card className="min-w-0 overflow-hidden">
         <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <FilterSelect label="Area" value={filters.area} options={options.areas} onChange={(value) => setFilters({ ...filters, area: value })} />
@@ -333,7 +388,7 @@ function PatrimonyCatalog({
         <MobileAssetCards assets={assets} onSelect={onSelect} />
       </div>
       <div className="hidden lg:block">
-        <DataTable columns={columns} data={assets} searchPlaceholder="Pesquisar patrimonio..." />
+        <DataTable columns={columns} data={assets} searchPlaceholder="Pesquisar por codigo, descricao, congregacao, responsavel, marca ou modelo..." onRowClick={onSelect} />
       </div>
     </div>
   );
@@ -824,7 +879,7 @@ function Info({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="min-w-0 rounded-md border border-border bg-card p-3">
       <p className="text-xs uppercase text-muted-foreground">{label}</p>
-      <p className="mt-1 break-words font-semibold">{value || "-"}</p>
+      <p className="mt-1 whitespace-normal break-words text-sm font-semibold leading-5 sm:text-base">{value || "-"}</p>
     </div>
   );
 }

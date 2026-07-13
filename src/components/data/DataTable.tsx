@@ -16,9 +16,10 @@ interface DataTableProps<TData> {
   columns: ColumnDef<TData>[];
   data: TData[];
   searchPlaceholder?: string;
+  onRowClick?: (row: TData) => void;
 }
 
-export function DataTable<TData>({ columns, data, searchPlaceholder = "Pesquisar..." }: DataTableProps<TData>) {
+export function DataTable<TData>({ columns, data, searchPlaceholder = "Pesquisar...", onRowClick }: DataTableProps<TData>) {
   const [globalFilter, setGlobalFilter] = useState("");
   const tableColumns = useMemo(() => columns, [columns]);
   const table = useReactTable({
@@ -41,7 +42,7 @@ export function DataTable<TData>({ columns, data, searchPlaceholder = "Pesquisar
         </div>
       </div>
       <div className="w-full overflow-x-auto">
-        <table className="min-w-max whitespace-nowrap text-sm md:w-full md:min-w-[760px]">
+        <table className="min-w-max text-sm md:w-full md:min-w-[760px]">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b border-border bg-muted/50">
@@ -60,9 +61,13 @@ export function DataTable<TData>({ columns, data, searchPlaceholder = "Pesquisar
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+              <tr
+                key={row.id}
+                className={onRowClick ? "cursor-pointer border-b border-border last:border-0 hover:bg-muted/40" : "border-b border-border last:border-0 hover:bg-muted/40"}
+                onClick={() => onRowClick?.(row.original)}
+              >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-3 py-3 align-middle sm:px-4">
+                  <td key={cell.id} className="max-w-[260px] break-words px-3 py-3 align-top sm:px-4">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
