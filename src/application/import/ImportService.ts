@@ -1,7 +1,9 @@
-import type { IntegrationRepository } from "@/domain/repositories/IntegrationRepository";
 import type { SpreadsheetRepository } from "@/domain/repositories/SpreadsheetRepository";
 import { hashRow } from "@/domain/sheets/detection";
 import type { MinistryModule, SheetModuleMapping, SpreadsheetData, SyncDiff, SyncSnapshot } from "@/domain/sheets/types";
+import type { GoogleSheetsRepository } from "@/infrastructure/google/GoogleSheetsRepository";
+import type { DatabaseSpreadsheetRepository } from "@/infrastructure/supabase/DatabaseSpreadsheetRepository";
+import { settingsStore } from "@/infrastructure/storage/SettingsStore";
 
 const moduleRules: Array<[MinistryModule, RegExp]> = [
   ["treasury", /valor|receita|despesa|d[ií]zimo|oferta|forma|recibo/i],
@@ -11,15 +13,46 @@ const moduleRules: Array<[MinistryModule, RegExp]> = [
   ["events", /evento|culto|agenda|data/i],
 ];
 
+// O comparativo da ultima sincronizacao e so informativo e fica neste navegador.
+const SNAPSHOT_KEY = "ad-montese.sync-snapshot";
+
 export class ImportService {
   constructor(
-    private readonly spreadsheetRepository: SpreadsheetRepository,
-    private readonly integrationRepository: IntegrationRepository,
+    private readonly googleRepository: GoogleSheetsRepository,
+    private readonly databaseRepository: DatabaseSpreadsheetRepository,
   ) {}
 
+  private get activeRepository(): SpreadsheetRepository {
+    return settingsStore.get().data_source === "database" ? this.databaseRepository : this.googleRepository;
+  }
+
   async loadCurrentSpreadsheet(): Promise<SpreadsheetData> {
-    const state = this.integrationRepository.getState();
-    return this.spreadsheetRepository.loadSpreadsheet(state.spreadsheetId);
+    return this.activeRepository.loadSpreadsheet();
+  }
+
+  /**
+   * Copia todas as abas da planilha do Google para o banco. Depois disso o
+   * administrador pode trocar a fonte de dados para "banco" e a planilha vira
+   * apenas um arquivo historico.
+   */
+  async importGoogleIntoDatabase(onProgress?: (done: number, total: number) => void) {
+    const raw = await this.googleRepository.loadRawTabs();
+    const result = await this.databaseRepository.replaceAll(raw.tabs, onProgress);
+    await settingsStore.update({ last_import_at: new Date().toISOString() });
+    return result;
+  }
+
+  getMappings(): SheetModuleMapping[] {
+    return settingsStore.get().sheet_mappings;
+  }
+
+  async saveMapping(mapping: SheetModuleMapping) {
+    const mappings = [...this.getMappings().filter((item) => item.sheetId !== mapping.sheetId), mapping];
+    await settingsStore.update({ sheet_mappings: mappings });
+  }
+
+  getLastSyncAt() {
+    return readSnapshot()?.syncedAt;
   }
 
   inferModule(sheet: SpreadsheetData["sheets"][number]): MinistryModule {
@@ -44,7 +77,7 @@ export class ImportService {
   }
 
   sync(spreadsheet: SpreadsheetData): SyncDiff {
-    const previous = this.integrationRepository.getState().snapshot;
+    const previous = readSnapshot();
     const nextHashes: SyncSnapshot["sheetHashes"] = {};
     let newRecords = 0;
     let changedRecords = 0;
@@ -64,12 +97,29 @@ export class ImportService {
       });
     });
 
-    this.integrationRepository.saveSnapshot({
+    writeSnapshot({
       spreadsheetId: spreadsheet.spreadsheetId,
       sheetHashes: nextHashes,
       syncedAt: new Date().toISOString(),
     });
 
     return { newRecords, changedRecords, unchangedRecords, failures: [] };
+  }
+}
+
+function readSnapshot(): SyncSnapshot | undefined {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    return raw ? (JSON.parse(raw) as SyncSnapshot) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeSnapshot(snapshot: SyncSnapshot) {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Comparativo e opcional; sem espaco no navegador, so nao fica guardado.
   }
 }

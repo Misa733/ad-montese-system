@@ -1,5 +1,7 @@
 import { findValue, normalizeText, sheetValueToString, type SheetDraftChange } from "@/application/data/SpreadsheetDataService";
 import type { SheetCellValue, SheetRow, SpreadsheetData, WorksheetData } from "@/domain/sheets/types";
+import { recordStore } from "@/infrastructure/storage/RecordStore";
+import { settingsStore } from "@/infrastructure/storage/SettingsStore";
 import { PATRIMONY_SEED_ASSETS, PATRIMONY_SEED_INVENTORIES, PATRIMONY_SEED_MAINTENANCES, PATRIMONY_SEED_MOVEMENTS, PATRIMONY_SEED_PROPERTIES } from "./patrimonySeed";
 
 export type PatrimonyStatus = "Ativo" | "Em manutencao" | "Baixado" | "Transferido" | "Nao localizado";
@@ -129,10 +131,15 @@ export interface PatrimonyProperty {
 
 const PATRIMONY_SHEETS = new Set(["sede", "ar", "nm", "ia", "mr", "m1", "m2", "m3", "mh", "pa", "pc", "tu", "mi", "ic", "c15"]);
 const ADMIN_SHEETS = new Set(["modelo", "geral", "termos"]);
-const LOCAL_ASSETS_KEY = "ad-montese.patrimony.assets";
-const LOCAL_MOVEMENTS_KEY = "ad-montese.patrimony.movements";
-const LOCAL_MAINTENANCE_KEY = "ad-montese.patrimony.maintenance";
-const LOCAL_INVENTORIES_KEY = "ad-montese.patrimony.inventories";
+const ASSETS = "patrimony.assets";
+const MOVEMENTS = "patrimony.movements";
+const MAINTENANCES = "patrimony.maintenances";
+const INVENTORIES = "patrimony.inventories";
+
+// Dados de demonstracao so aparecem com o "Modo demonstracao" ligado nas Configuracoes.
+function demo<T>(rows: T[]): T[] {
+  return settingsStore.get().demo_mode ? rows : [];
+}
 
 export class PatrimonyService {
   constructor(private readonly spreadsheet?: SpreadsheetData) {}
@@ -153,15 +160,17 @@ export class PatrimonyService {
       destination: asset.location || asset.congregation,
       observation: asset.isDemo ? "Registro demonstrativo para prototipo patrimonial." : `Registro importado da aba ${asset.sourceSheet}.`,
     }));
-    return [...readLocalList<PatrimonyMovement>(LOCAL_MOVEMENTS_KEY), ...PATRIMONY_SEED_MOVEMENTS, ...imported];
+    return [...recordStore.list<PatrimonyMovement>(MOVEMENTS), ...demo(PATRIMONY_SEED_MOVEMENTS), ...imported];
   }
 
   getMaintenances() {
-    return [...readLocalList<PatrimonyMaintenance>(LOCAL_MAINTENANCE_KEY), ...PATRIMONY_SEED_MAINTENANCES];
+    return [...recordStore.list<PatrimonyMaintenance>(MAINTENANCES), ...demo(PATRIMONY_SEED_MAINTENANCES)];
   }
 
   getInventories() {
-    return [...readLocalList<PatrimonyInventory>(LOCAL_INVENTORIES_KEY), ...PATRIMONY_SEED_INVENTORIES];
+    const saved = recordStore.list<PatrimonyInventory>(INVENTORIES);
+    const savedIds = new Set(saved.map((inventory) => inventory.id));
+    return [...saved, ...demo(PATRIMONY_SEED_INVENTORIES).filter((inventory) => !savedIds.has(inventory.id))];
   }
 
   getProperties(assets = this.getAssets()) {
@@ -185,7 +194,7 @@ export class PatrimonyService {
         sourceSheet: asset.sourceSheet,
       }));
 
-    return dedupeProperties([...PATRIMONY_SEED_PROPERTIES, ...fromAssets]);
+    return dedupeProperties([...demo(PATRIMONY_SEED_PROPERTIES), ...fromAssets]);
   }
 
   buildDashboard(assets = this.getAssets(), inventories = this.getInventories(), maintenances = this.getMaintenances()) {
@@ -229,8 +238,7 @@ export class PatrimonyService {
 
   getMergedAssets() {
     const realAssetsFromSheet = this.getImportedAssets();
-    const demoAssetsSeed = PATRIMONY_SEED_ASSETS;
-    return dedupeAssets([...realAssetsFromSheet, ...demoAssetsSeed, ...readLocalList<PatrimonyAsset>(LOCAL_ASSETS_KEY)]);
+    return dedupeAssets([...realAssetsFromSheet, ...demo(PATRIMONY_SEED_ASSETS), ...recordStore.list<PatrimonyAsset>(ASSETS)]);
   }
 
   createAsset(input: Partial<PatrimonyAsset>) {
@@ -294,8 +302,8 @@ export class PatrimonyService {
         ValorTotal: totalValue,
       },
     };
-    saveLocalList(LOCAL_ASSETS_KEY, [asset, ...readLocalList<PatrimonyAsset>(LOCAL_ASSETS_KEY)]);
-    saveLocalList(LOCAL_MOVEMENTS_KEY, [
+    recordStore.upsert(ASSETS, [asset]);
+    recordStore.upsert<PatrimonyMovement>(MOVEMENTS, [
       {
         id: `mov_${crypto.randomUUID()}`,
         assetCode: asset.code,
@@ -305,14 +313,13 @@ export class PatrimonyService {
         user: "Sistema",
         observation: "Bem cadastrado pelo modulo patrimonial.",
       },
-      ...readLocalList<PatrimonyMovement>(LOCAL_MOVEMENTS_KEY),
     ]);
     return asset;
   }
 
   createMaintenance(input: Omit<PatrimonyMaintenance, "id">) {
     const maintenance = { ...input, id: `mnt_${crypto.randomUUID()}` };
-    saveLocalList(LOCAL_MAINTENANCE_KEY, [maintenance, ...readLocalList<PatrimonyMaintenance>(LOCAL_MAINTENANCE_KEY)]);
+    recordStore.upsert(MAINTENANCES, [maintenance]);
     return maintenance;
   }
 
@@ -331,22 +338,20 @@ export class PatrimonyService {
       completionPercentage: input.completionPercentage ?? 0,
       checks: {},
     };
-    saveLocalList(LOCAL_INVENTORIES_KEY, [inventory, ...this.getInventories()]);
+    recordStore.upsert(INVENTORIES, [inventory]);
     return inventory;
   }
 
   updateInventoryCheck(inventoryId: string, assetCode: string, check: PatrimonyInventoryCheck) {
-    const inventories = this.getInventories().map((inventory) =>
-      inventory.id === inventoryId ? recalculateInventory({ ...inventory, checks: { ...inventory.checks, [assetCode]: check } }) : inventory,
-    );
-    saveLocalList(LOCAL_INVENTORIES_KEY, inventories);
+    const inventory = this.getInventories().find((item) => item.id === inventoryId);
+    if (!inventory) return;
+    recordStore.upsert(INVENTORIES, [recalculateInventory({ ...inventory, checks: { ...inventory.checks, [assetCode]: check } })]);
   }
 
   finishInventory(inventoryId: string) {
-    const inventories = this.getInventories().map((inventory) =>
-      inventory.id === inventoryId ? { ...inventory, finishedAt: new Date().toISOString(), status: "Concluido", completionPercentage: 100 } : inventory,
-    );
-    saveLocalList(LOCAL_INVENTORIES_KEY, inventories);
+    const inventory = this.getInventories().find((item) => item.id === inventoryId);
+    if (!inventory) return;
+    recordStore.upsert(INVENTORIES, [{ ...inventory, finishedAt: new Date().toISOString(), status: "Concluido", completionPercentage: 100 }]);
   }
 
   toSheetRow(asset: PatrimonyAsset): SheetRow {
@@ -471,7 +476,7 @@ export class PatrimonyService {
 }
 
 export function saveAssetLocally(asset: PatrimonyAsset) {
-  saveLocalList(LOCAL_ASSETS_KEY, [asset, ...readLocalList<PatrimonyAsset>(LOCAL_ASSETS_KEY)]);
+  recordStore.upsert(ASSETS, [asset]);
 }
 
 export function getPatrimonyDraftSummary(drafts: SheetDraftChange[]) {
@@ -660,17 +665,4 @@ function recalculateInventory(inventory: PatrimonyInventory) {
     notFoundItems,
     completionPercentage,
   };
-}
-
-function readLocalList<T>(key: string): T[] {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? "[]") as T[];
-  } catch {
-    localStorage.removeItem(key);
-    return [];
-  }
-}
-
-function saveLocalList<T>(key: string, rows: T[]) {
-  localStorage.setItem(key, JSON.stringify(rows));
 }

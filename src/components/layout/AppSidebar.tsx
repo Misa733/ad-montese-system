@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "@/application/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { navItems, productBadges } from "./nav-items";
@@ -10,6 +11,9 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
+  const { can } = useAuth();
+  const visibleItems = navItems.filter((item) => !item.permission || can(item.permission));
+
   return (
     <>
       <div
@@ -45,7 +49,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
         </div>
 
         <nav className="mt-6 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-          {navItems.map(({ title, href, icon: Icon }) => (
+          {visibleItems.map(({ title, href, icon: Icon }) => (
             <NavLink
               key={href}
               to={href}

@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Cloud, DatabaseZap, Eye, Link2, RefreshCcw, Save, Settings2, X } from "lucide-react";
+import { CheckCircle2, Cloud, DatabaseZap, Eye, Link2, RefreshCcw, Settings2, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { importService, integrationStateRepository } from "@/application/import/container";
+import { importService } from "@/application/import/container";
+import { useSettings } from "@/application/data/useStores";
 import { useSpreadsheet } from "@/application/import/useSpreadsheet";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MinistryModule, WorksheetData } from "@/domain/sheets/types";
@@ -25,8 +26,8 @@ const moduleLabels: Record<MinistryModule, string> = {
 export function IntegrationsPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useSpreadsheet();
-  const [state, setState] = useState(() => integrationStateRepository.getState());
-  const [spreadsheetUrl, setSpreadsheetUrl] = useState(state.spreadsheetUrl);
+  const settings = useSettings();
+  const [lastSyncAt, setLastSyncAt] = useState(() => importService.getLastSyncAt());
   const [preview, setPreview] = useState<WorksheetData | null>(null);
   const [raw, setRaw] = useState<WorksheetData | null>(null);
 
@@ -44,28 +45,17 @@ export function IntegrationsPage() {
       return importService.sync(spreadsheet);
     },
     onSuccess: (diff) => {
-      setState(integrationStateRepository.getState());
+      setLastSyncAt(importService.getLastSyncAt());
       queryClient.invalidateQueries({ queryKey: ["spreadsheet"] });
       toast.success(`Sincronização: ${diff.newRecords} novos, ${diff.changedRecords} alterados`);
     },
   });
 
-  function saveUrl() {
-    try {
-      const next = integrationStateRepository.saveSpreadsheetUrl(spreadsheetUrl);
-      setState(next);
-      queryClient.invalidateQueries({ queryKey: ["spreadsheet"] });
-      toast.success("Link da planilha atualizado");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível alterar o link");
-    }
-  }
-
   function saveMapping(sheet: WorksheetData, module: MinistryModule) {
-    const mapping = importService.buildMapping(sheet, module);
-    const next = integrationStateRepository.saveMapping(mapping);
-    setState(next);
-    toast.success(`Aba ${sheet.title} vinculada a ${moduleLabels[module]}`);
+    importService
+      .saveMapping(importService.buildMapping(sheet, module))
+      .then(() => toast.success(`Aba ${sheet.title} vinculada a ${moduleLabels[module]}`))
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Nao foi possivel salvar"));
   }
 
   return (
@@ -90,29 +80,29 @@ export function IntegrationsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Status da conexão" value={isError ? "Falha" : "Conectado"} icon={isError ? Link2 : CheckCircle2} />
-        <MetricCard label="Última sincronização" value={formatDateTime(state.lastSyncAt)} icon={RefreshCcw} />
+        <MetricCard label="Última sincronização" value={formatDateTime(lastSyncAt)} icon={RefreshCcw} />
         <MetricCard label="Quantidade de abas" value={totals.sheets} icon={Cloud} />
         <MetricCard label="Quantidade de registros" value={totals.records} icon={DatabaseZap} />
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Planilha conectada</CardTitle>
-          <CardDescription>O ID é extraído automaticamente do link e fica centralizado na configuração da integração.</CardDescription>
+          <CardTitle>Fonte de dados</CardTitle>
+          <CardDescription>
+            {settings.data_source === "database"
+              ? "O sistema esta lendo do banco de dados (copia importada da planilha)."
+              : settings.spreadsheet_url
+                ? "O sistema esta lendo a planilha do Google pelo servidor, sem expor a chave."
+                : "Nenhuma planilha configurada ainda."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-            <Input value={spreadsheetUrl} onChange={(event) => setSpreadsheetUrl(event.target.value)} />
-            <Button variant="outline" onClick={saveUrl}>
-              <Save className="h-4 w-4" />
-              Alterar link
-            </Button>
-            <Button variant="secondary" onClick={() => toast.success("Fluxo OAuth preparado para conexão Google")}>
+          <Button variant="outline" asChild>
+            <Link to="/app/configuracoes">
               <Cloud className="h-4 w-4" />
-              Conectar Google
-            </Button>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">Spreadsheet ID atual: {state.spreadsheetId}</p>
+              Alterar planilha ou migrar para o banco
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 
@@ -121,7 +111,7 @@ export function IntegrationsPage() {
           <Skeleton className="h-56" />
         ) : (
           data?.sheets.map((sheet) => {
-            const mapping = state.mappings.find((item) => item.sheetId === sheet.id);
+            const mapping = settings.sheet_mappings.find((item) => item.sheetId === sheet.id);
             const inferred = importService.inferModule(sheet);
             return (
               <Card key={sheet.id}>

@@ -48,6 +48,13 @@ export function detectDataType(values: SheetCellValue[]): DetectedDataType {
   return "string";
 }
 
+/** Hash curto (FNV-1a) de uma linha, so para saber se ela mudou entre sincronizacoes. */
 export function hashRow(row: SheetRow): string {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(row))));
+  const text = JSON.stringify(row);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }

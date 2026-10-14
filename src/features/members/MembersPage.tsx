@@ -98,7 +98,7 @@ export function MembersPage() {
           onSave={(row) => {
             spreadsheetService.appendRowToSheet("Dizimistas", row);
             setCreating(false);
-            toast.success("Membro salvo localmente e preparado para sincronizacao");
+            toast.success("Membro salvo");
           }}
         />
       ) : null}

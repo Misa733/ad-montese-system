@@ -23,6 +23,12 @@
 - Ao alterar rotas, atualize também a navegação e os menus em [src/app/App.tsx](src/app/App.tsx) e [src/components/layout/nav-items.ts](src/components/layout/nav-items.ts).
 - Use Tailwind para estilos e mantenha componentes visuais reutilizáveis em [src/components/ui](src/components/ui).
 
+## Dados e seguranca
+- Login, perfis e dados ficam no Supabase (`supabase/migrations`). As permissoes valem no banco (RLS); a tela so esconde o que o perfil nao pode usar.
+- Cadastros feitos no sistema usam `recordStore` ([src/infrastructure/storage/RecordStore.ts](src/infrastructure/storage/RecordStore.ts)); nao grave dados de negocio em `localStorage`.
+- Configuracoes globais ficam em `settingsStore` (tabela `settings`).
+- A planilha do Google e lida somente pelo servidor ([api/sheets.ts](api/sheets.ts)). Nunca coloque chaves do Google em variaveis `VITE_*` nem no codigo.
+
 ## Diretrizes de mudança
 - Evite refatorações amplas sem necessidade; prefira ajustes locais e bem delimitados.
 - Ao adicionar nova tela ou módulo, alinhe-se com o padrão já existente em [src/features](src/features).

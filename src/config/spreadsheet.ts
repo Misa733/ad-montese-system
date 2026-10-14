@@ -1,15 +1,6 @@
-const FALLBACK_SPREADSHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1UbasMX3L7dgSsIaMcMorZVYDnuay6lJ8sc69_6sIOSE/edit?usp=sharing";
-const FALLBACK_GOOGLE_SHEETS_API_KEY = "AIzaSyCMm7L73UTLVQlb9mZaU4S_0WDEzqnHNow";
-
-function readEnv(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-export const DEFAULT_SPREADSHEET_URL = readEnv(import.meta.env.VITE_DEFAULT_SPREADSHEET_URL) ?? FALLBACK_SPREADSHEET_URL;
-
-export const GOOGLE_SHEETS_API_KEY = readEnv(import.meta.env.VITE_GOOGLE_SHEETS_API_KEY) ?? FALLBACK_GOOGLE_SHEETS_API_KEY;
-export const GOOGLE_OAUTH_ACCESS_TOKEN = readEnv(import.meta.env.VITE_GOOGLE_OAUTH_ACCESS_TOKEN);
+// O link da planilha fica salvo nas Configuracoes do sistema (tabela `settings`).
+// A chave do Google NAO fica mais no navegador: a leitura passa pela funcao
+// /api/sheets, que roda no servidor da Vercel e exige usuario logado.
 
 export function extractSpreadsheetId(input: string): string {
   const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
@@ -18,4 +9,10 @@ export function extractSpreadsheetId(input: string): string {
   throw new Error("Link ou ID de planilha invalido.");
 }
 
-export const DEFAULT_SPREADSHEET_ID = extractSpreadsheetId(DEFAULT_SPREADSHEET_URL);
+export function tryExtractSpreadsheetId(input: string): string | undefined {
+  try {
+    return extractSpreadsheetId(input);
+  } catch {
+    return undefined;
+  }
+}
