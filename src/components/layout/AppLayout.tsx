@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "@/application/auth/AuthProvider";
 import { AppHeader } from "./AppHeader";
 import { AppSidebar } from "./AppSidebar";
 
@@ -9,6 +10,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ isDark, onToggleTheme }: AppLayoutProps) {
+  const { status } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -26,6 +28,8 @@ export function AppLayout({ isDark, onToggleTheme }: AppLayoutProps) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isSidebarOpen]);
+
+  if (status !== "ready") return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground">

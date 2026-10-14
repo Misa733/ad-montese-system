@@ -1,4 +1,6 @@
-import { Menu, Search } from "lucide-react";
+import { LogOut, Menu, Search } from "lucide-react";
+import { useAuth } from "@/application/auth/AuthProvider";
+import { ROLE_LABELS } from "@/application/auth/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -10,6 +12,15 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ isDark, onToggleTheme, onOpenMenu }: AppHeaderProps) {
+  const { profile, signOut, isLocalMode } = useAuth();
+  const displayName = profile?.full_name || profile?.email || "Usuario";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
       <div className="flex h-16 min-w-0 items-center gap-3 px-3 sm:px-6">
@@ -23,12 +34,17 @@ export function AppHeader({ isDark, onToggleTheme, onOpenMenu }: AppHeaderProps)
         <div className="ml-auto flex min-w-0 items-center gap-2">
           <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
           <div className="hidden text-right sm:block">
-            <p className="text-sm font-medium">Administrador</p>
-            <p className="text-xs text-muted-foreground">Sede Montese</p>
+            <p className="max-w-[12rem] truncate text-sm font-medium">{displayName}</p>
+            <p className="text-xs text-muted-foreground">{isLocalMode ? "Sem banco (desenvolvimento)" : profile ? ROLE_LABELS[profile.role] : ""}</p>
           </div>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-            AD
+            {initials || "AD"}
           </div>
+          {isLocalMode ? null : (
+            <Button variant="ghost" size="icon" aria-label="Sair" title="Sair" onClick={() => void signOut()}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
     </header>

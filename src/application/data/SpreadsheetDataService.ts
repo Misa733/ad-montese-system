@@ -1,4 +1,8 @@
+import toast from "react-hot-toast";
+import { databaseSpreadsheetRepository } from "@/application/import/container";
 import type { SheetCellValue, SheetRow, SpreadsheetData, WorksheetData } from "@/domain/sheets/types";
+import { recordStore } from "@/infrastructure/storage/RecordStore";
+import { settingsStore } from "@/infrastructure/storage/SettingsStore";
 
 export type SheetDraftOperation = "append" | "update" | "write";
 
@@ -11,7 +15,10 @@ export interface SheetDraftChange {
   createdAt: string;
 }
 
-const DRAFTS_KEY = "ad-montese.sheet-draft-changes";
+const DRAFTS = "sheet.drafts";
+
+// Linhas lancadas pelo sistema vao para o fim da aba, depois das importadas.
+const APPENDED_ROW_INDEX = 2_000_000_000;
 
 export class SpreadsheetDataService {
   constructor(private readonly spreadsheet?: SpreadsheetData) {}
@@ -46,7 +53,16 @@ export class SpreadsheetDataService {
   }
 
   appendRowToSheet(sheetName: string, row: SheetRow) {
-    return saveDraft({ sheetName, operation: "append", row });
+    const draft = saveDraft({ sheetName, operation: "append", row });
+    if (settingsStore.get().data_source === "database") {
+      const sheet = this.getSheet(sheetName);
+      if (sheet) {
+        databaseSpreadsheetRepository
+          .appendRow(sheet.id, APPENDED_ROW_INDEX, rowToCells(sheet, row))
+          .catch((error: unknown) => toast.error(`Nao foi possivel gravar na aba ${sheet.title}: ${error instanceof Error ? error.message : "erro"}`));
+      }
+    }
+    return draft;
   }
 
   updateRowInSheet(sheetName: string, rowId: string, row: SheetRow) {
@@ -91,12 +107,7 @@ export function findColumn(sheet: WorksheetData | undefined, aliases: string[]) 
 }
 
 function readDrafts(): SheetDraftChange[] {
-  try {
-    return JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? "[]") as SheetDraftChange[];
-  } catch {
-    localStorage.removeItem(DRAFTS_KEY);
-    return [];
-  }
+  return recordStore.list<SheetDraftChange>(DRAFTS);
 }
 
 function saveDraft(change: Omit<SheetDraftChange, "id" | "createdAt">) {
@@ -105,6 +116,15 @@ function saveDraft(change: Omit<SheetDraftChange, "id" | "createdAt">) {
     id: `draft_${crypto.randomUUID()}`,
     createdAt: new Date().toISOString(),
   };
-  localStorage.setItem(DRAFTS_KEY, JSON.stringify([next, ...readDrafts()]));
+  recordStore.upsert(DRAFTS, [next]);
   return next;
+}
+
+/** Coloca os valores de um registro na ordem das colunas da aba. */
+function rowToCells(sheet: WorksheetData, row: SheetRow): SheetCellValue[] {
+  const entries = Object.entries(row).map(([key, value]) => [normalizeText(key), value] as const);
+  return sheet.columns.map((column) => {
+    const match = entries.find(([key]) => key === normalizeText(column.label) || key === normalizeText(column.key));
+    return match ? match[1] : null;
+  });
 }
